@@ -4,14 +4,6 @@ Get Creddy up and running in minutes.
 
 ## Installation
 
-### From Source
-
-```bash
-go install github.com/getcreddy/creddy@latest
-```
-
-### From Release
-
 Download the latest release for your platform from [GitHub Releases](https://github.com/getcreddy/creddy/releases).
 
 ```bash
@@ -20,10 +12,28 @@ curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-dar
 tar -xzf creddy-darwin-arm64.tar.gz
 sudo mv creddy /usr/local/bin/
 
+# macOS (Intel)
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-amd64.tar.gz
+tar -xzf creddy-darwin-amd64.tar.gz
+sudo mv creddy /usr/local/bin/
+
 # Linux (amd64)
 curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-amd64.tar.gz
 tar -xzf creddy-linux-amd64.tar.gz
 sudo mv creddy /usr/local/bin/
+
+# Linux (arm64)
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-arm64.tar.gz
+tar -xzf creddy-linux-arm64.tar.gz
+sudo mv creddy /usr/local/bin/
+```
+
+### From Source
+
+If you have Go installed:
+
+```bash
+go install github.com/getcreddy/creddy@latest
 ```
 
 ## Starting the Server

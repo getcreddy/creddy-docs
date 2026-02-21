@@ -45,8 +45,9 @@ Creddy offers a third way: **ephemeral, scoped credentials** that exist only as 
 ## Quick Start
 
 ```bash
-# Install creddy
-go install github.com/getcreddy/creddy@latest
+# Download the latest release (macOS Apple Silicon)
+curl -sL $(curl -s https://api.github.com/repos/getcreddy/creddy/releases/latest | grep "browser_download_url.*darwin-arm64.tar.gz" | cut -d '"' -f 4) | tar -xz
+sudo mv creddy /usr/local/bin/
 
 # Start the server
 creddy server
@@ -56,5 +57,7 @@ curl -X POST http://localhost:8080/api/v1/credentials \
   -H "Content-Type: application/json" \
   -d '{"backend": "github", "ttl": "1h"}'
 ```
+
+See [Getting Started](/docs/getting-started) for other platforms.
 
 Ready to get started? Head to [Getting Started](/docs/getting-started).
