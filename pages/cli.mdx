@@ -1,0 +1,178 @@
+# CLI Reference
+
+Creddy command-line interface.
+
+## Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--config` | Path to config file |
+| `--server` | Server URL (for client commands) |
+| `-v, --verbose` | Verbose output |
+
+## Commands
+
+### `creddy server`
+
+Start the Creddy server.
+
+```bash
+creddy server [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port` | `8080` | Server port |
+| `--host` | `0.0.0.0` | Host to bind |
+| `--data-dir` | `~/.creddy` | Data directory |
+
+---
+
+### `creddy issue`
+
+Issue a new credential.
+
+```bash
+creddy issue <backend> [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--ttl` | Backend default | Time to live |
+| `--scope` | Backend default | Scopes (repeatable) |
+| `--meta` | | Metadata key=value (repeatable) |
+| `-o, --output` | `text` | Output format (text, json) |
+
+#### Examples
+
+```bash
+# Basic usage
+creddy issue github
+
+# With TTL and scopes
+creddy issue github --ttl 30m --scope repo:read --scope issues:write
+
+# With metadata
+creddy issue github --meta agent=my-agent --meta task=deploy
+
+# JSON output
+creddy issue github -o json
+```
+
+---
+
+### `creddy revoke`
+
+Revoke a credential.
+
+```bash
+creddy revoke <credential-id>
+```
+
+---
+
+### `creddy backends`
+
+List configured backends.
+
+```bash
+creddy backends [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output` | Output format (text, json) |
+
+---
+
+### `creddy audit`
+
+Query the audit log.
+
+```bash
+creddy audit [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backend` | | Filter by backend |
+| `--since` | `24h` | Start time |
+| `--until` | | End time |
+| `--limit` | `100` | Max results |
+| `-o, --output` | `text` | Output format |
+
+#### Examples
+
+```bash
+# Last 24 hours
+creddy audit
+
+# Specific backend
+creddy audit --backend github --since 7d
+
+# JSON output
+creddy audit -o json
+```
+
+---
+
+### `creddy keys`
+
+Manage signing keys.
+
+```bash
+creddy keys <subcommand>
+```
+
+#### Subcommands
+
+**`creddy keys list`** — List all signing keys
+
+```bash
+creddy keys list
+```
+
+**`creddy keys rotate`** — Generate a new signing key
+
+```bash
+creddy keys rotate
+```
+
+**`creddy keys revoke`** — Revoke a signing key
+
+```bash
+creddy keys revoke <key-id>
+```
+
+**`creddy keys export`** — Export public key
+
+```bash
+creddy keys export <key-id>
+```
+
+---
+
+### `creddy version`
+
+Print version information.
+
+```bash
+creddy version
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CREDDY_CONFIG` | Config file path |
+| `CREDDY_SERVER` | Server URL |
+| `CREDDY_DATA_DIR` | Data directory |
+
+## Exit Codes
+
+| Code | Description |
+|------|-------------|
+| `0` | Success |
+| `1` | General error |
+| `2` | Invalid arguments |
+| `3` | Connection error |

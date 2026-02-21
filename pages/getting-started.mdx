@@ -1,0 +1,95 @@
+# Getting Started
+
+Get Creddy up and running in minutes.
+
+## Installation
+
+### From Source
+
+```bash
+go install github.com/getcreddy/creddy@latest
+```
+
+### From Release
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/getcreddy/creddy/releases).
+
+```bash
+# macOS (Apple Silicon)
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-arm64.tar.gz
+tar -xzf creddy-darwin-arm64.tar.gz
+sudo mv creddy /usr/local/bin/
+
+# Linux (amd64)
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-amd64.tar.gz
+tar -xzf creddy-linux-amd64.tar.gz
+sudo mv creddy /usr/local/bin/
+```
+
+## Starting the Server
+
+```bash
+creddy server
+```
+
+By default, Creddy runs on `http://localhost:8080`.
+
+### Configuration Options
+
+```bash
+# Custom port
+creddy server --port 9000
+
+# Custom data directory
+creddy server --data-dir /var/lib/creddy
+```
+
+## Your First Credential
+
+Once the server is running, request a credential:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/credentials \
+  -H "Content-Type: application/json" \
+  -d '{
+    "backend": "github",
+    "ttl": "1h",
+    "scopes": ["repo:read"]
+  }'
+```
+
+Response:
+
+```json
+{
+  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
+  "expires_at": "2024-01-15T16:00:00Z",
+  "backend": "github",
+  "scopes": ["repo:read"]
+}
+```
+
+## Configuring Backends
+
+Backends are the external services Creddy can issue credentials for. Configure them in `~/.creddy/config.yaml`:
+
+```yaml
+backends:
+  github:
+    type: github
+    token: ghp_xxxxxxxxxxxx
+    
+  aws:
+    type: aws
+    access_key_id: AKIA...
+    secret_access_key: ...
+    region: us-east-1
+```
+
+See [Concepts](/concepts) for more on how backends work.
+
+## Next Steps
+
+- Learn about [Concepts](/concepts) like backends, scopes, and TTLs
+- Explore the [API Reference](/api) for all endpoints
+- Check out the [CLI Reference](/cli) for command-line usage

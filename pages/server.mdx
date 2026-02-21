@@ -1,0 +1,145 @@
+# Server
+
+Running and configuring the Creddy server.
+
+## Starting the Server
+
+```bash
+creddy server
+```
+
+### Command Line Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port` | `8080` | HTTP server port |
+| `--host` | `0.0.0.0` | Host to bind to |
+| `--data-dir` | `~/.creddy` | Data directory for keys and database |
+| `--config` | `~/.creddy/config.yaml` | Configuration file path |
+
+### Example
+
+```bash
+creddy server \
+  --port 9000 \
+  --host 127.0.0.1 \
+  --data-dir /var/lib/creddy
+```
+
+## Configuration File
+
+Create `~/.creddy/config.yaml`:
+
+```yaml
+server:
+  port: 8080
+  host: 0.0.0.0
+
+# Backend configurations
+backends:
+  github:
+    type: github
+    token: ${GITHUB_TOKEN}
+    default_ttl: 1h
+    max_ttl: 24h
+    
+  aws-prod:
+    type: aws
+    access_key_id: ${AWS_ACCESS_KEY_ID}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+    region: us-east-1
+    default_ttl: 15m
+    max_ttl: 1h
+
+# Audit log settings
+audit:
+  enabled: true
+  retention: 90d
+```
+
+### Environment Variable Substitution
+
+Use `${VAR_NAME}` syntax to inject environment variables into the config. This keeps secrets out of the config file.
+
+## Data Directory
+
+The data directory (`~/.creddy` by default) contains:
+
+```
+~/.creddy/
+├── config.yaml      # Configuration
+├── creddy.db        # SQLite database (audit log)
+├── keys/
+│   └── signing.key  # Ed25519 signing key
+└── logs/
+    └── creddy.log   # Server logs
+```
+
+## Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+Returns:
+
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0"
+}
+```
+
+## Running in Production
+
+### Systemd Service
+
+Create `/etc/systemd/system/creddy.service`:
+
+```ini
+[Unit]
+Description=Creddy credential server
+After=network.target
+
+[Service]
+Type=simple
+User=creddy
+ExecStart=/usr/local/bin/creddy server --config /etc/creddy/config.yaml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable creddy
+sudo systemctl start creddy
+```
+
+### Docker
+
+```dockerfile
+FROM golang:1.24-alpine AS builder
+RUN go install github.com/getcreddy/creddy@latest
+
+FROM alpine:latest
+COPY --from=builder /go/bin/creddy /usr/local/bin/
+EXPOSE 8080
+CMD ["creddy", "server"]
+```
+
+```bash
+docker run -d \
+  -p 8080:8080 \
+  -v ~/.creddy:/root/.creddy \
+  creddy
+```
+
+## Security Considerations
+
+1. **Run behind a reverse proxy** — Use nginx/caddy for TLS termination
+2. **Restrict network access** — Only allow trusted agents to connect
+3. **Use environment variables** — Keep secrets out of config files
+4. **Enable audit logging** — Track all credential issuances
+5. **Rotate keys regularly** — Use `creddy keys rotate`

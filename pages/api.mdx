@@ -1,0 +1,214 @@
+# API Reference
+
+Creddy exposes a REST API for credential management.
+
+## Base URL
+
+```
+http://localhost:8080/api/v1
+```
+
+## Endpoints
+
+### Issue Credential
+
+Issue a new ephemeral credential.
+
+```
+POST /api/v1/credentials
+```
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `backend` | string | Yes | Backend identifier |
+| `ttl` | string | No | Time to live (e.g., "1h", "30m") |
+| `scopes` | string[] | No | Requested scopes |
+| `metadata` | object | No | Custom metadata for audit |
+
+#### Example Request
+
+```bash
+curl -X POST http://localhost:8080/api/v1/credentials \
+  -H "Content-Type: application/json" \
+  -d '{
+    "backend": "github",
+    "ttl": "1h",
+    "scopes": ["repo:read", "issues:write"],
+    "metadata": {
+      "agent_id": "my-agent",
+      "task": "update-readme"
+    }
+  }'
+```
+
+#### Example Response
+
+```json
+{
+  "id": "cred_abc123",
+  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
+  "backend": "github",
+  "scopes": ["repo:read", "issues:write"],
+  "expires_at": "2024-01-15T16:00:00Z",
+  "created_at": "2024-01-15T15:00:00Z"
+}
+```
+
+---
+
+### Get Credential
+
+Retrieve credential metadata (not the token itself).
+
+```
+GET /api/v1/credentials/{id}
+```
+
+#### Example Response
+
+```json
+{
+  "id": "cred_abc123",
+  "backend": "github",
+  "scopes": ["repo:read"],
+  "expires_at": "2024-01-15T16:00:00Z",
+  "created_at": "2024-01-15T15:00:00Z",
+  "revoked": false
+}
+```
+
+---
+
+### Revoke Credential
+
+Revoke a credential before expiration.
+
+```
+DELETE /api/v1/credentials/{id}
+```
+
+#### Example
+
+```bash
+curl -X DELETE http://localhost:8080/api/v1/credentials/cred_abc123
+```
+
+#### Response
+
+```json
+{
+  "id": "cred_abc123",
+  "revoked": true,
+  "revoked_at": "2024-01-15T15:30:00Z"
+}
+```
+
+---
+
+### List Backends
+
+List configured backends.
+
+```
+GET /api/v1/backends
+```
+
+#### Example Response
+
+```json
+{
+  "backends": [
+    {
+      "id": "github",
+      "type": "github",
+      "default_ttl": "1h",
+      "max_ttl": "24h",
+      "allowed_scopes": ["repo:*", "issues:*"]
+    },
+    {
+      "id": "aws-prod",
+      "type": "aws",
+      "default_ttl": "15m",
+      "max_ttl": "1h"
+    }
+  ]
+}
+```
+
+---
+
+### Get Backend
+
+Get details for a specific backend.
+
+```
+GET /api/v1/backends/{id}
+```
+
+---
+
+### Health Check
+
+```
+GET /health
+```
+
+#### Response
+
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0"
+}
+```
+
+---
+
+### Audit Log
+
+Query the audit log.
+
+```
+GET /api/v1/audit
+```
+
+#### Query Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `backend` | string | Filter by backend |
+| `since` | string | Start time (ISO 8601 or duration like "24h") |
+| `until` | string | End time |
+| `limit` | int | Max results (default 100) |
+
+#### Example
+
+```bash
+curl "http://localhost:8080/api/v1/audit?backend=github&since=24h&limit=50"
+```
+
+## Error Responses
+
+All errors follow this format:
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "Backend 'unknown' not found"
+  }
+}
+```
+
+### Error Codes
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `invalid_request` | 400 | Invalid request body or parameters |
+| `backend_not_found` | 404 | Backend doesn't exist |
+| `credential_not_found` | 404 | Credential doesn't exist |
+| `scope_not_allowed` | 403 | Requested scope not permitted |
+| `ttl_exceeded` | 400 | Requested TTL exceeds maximum |
+| `internal_error` | 500 | Server error |

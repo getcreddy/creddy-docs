@@ -1,0 +1,139 @@
+# Concepts
+
+Understanding Creddy's core concepts.
+
+## Credentials
+
+A **credential** is a short-lived token that grants access to an external service. Credentials are:
+
+- **Ephemeral** — They expire automatically
+- **Scoped** — They grant only specific permissions
+- **Signed** — They're cryptographically signed JWTs
+- **Auditable** — Every issuance is logged
+
+### Anatomy of a Credential
+
+```json
+{
+  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
+  "expires_at": "2024-01-15T16:00:00Z",
+  "backend": "github",
+  "scopes": ["repo:read", "issues:write"],
+  "metadata": {
+    "agent_id": "my-agent",
+    "task": "update-readme"
+  }
+}
+```
+
+## Backends
+
+A **backend** represents an external service that Creddy can issue credentials for. Backends are configured with the long-lived credentials that Creddy uses to generate short-lived tokens.
+
+### Supported Backend Types
+
+| Type | Description |
+|------|-------------|
+| `github` | GitHub personal access tokens or app tokens |
+| `aws` | AWS IAM credentials (STS temporary credentials) |
+| `generic` | Generic secret injection |
+
+### Backend Configuration
+
+```yaml
+backends:
+  my-github:
+    type: github
+    token: ghp_xxxxxxxxxxxx
+    default_ttl: 1h
+    max_ttl: 24h
+    allowed_scopes:
+      - repo:read
+      - repo:write
+      - issues:*
+```
+
+## Scopes
+
+**Scopes** define what a credential can do. They're backend-specific and follow the principle of least privilege.
+
+### Scope Patterns
+
+- `repo:read` — Exact match
+- `repo:*` — Wildcard (all repo permissions)
+- `*` — All scopes (use carefully)
+
+### Requesting Scopes
+
+When requesting a credential, specify only the scopes you need:
+
+```json
+{
+  "backend": "github",
+  "scopes": ["repo:read", "issues:write"]
+}
+```
+
+If no scopes are specified, the backend's default scopes are used.
+
+## TTL (Time to Live)
+
+**TTL** defines how long a credential is valid. Shorter is better.
+
+- **Minimum**: 1 minute
+- **Default**: Configured per backend (typically 1 hour)
+- **Maximum**: Configured per backend (typically 24 hours)
+
+### Choosing a TTL
+
+| Task Type | Recommended TTL |
+|-----------|-----------------|
+| Quick API call | 5-15 minutes |
+| CI/CD job | 1 hour |
+| Long-running task | 2-4 hours |
+| Background job | Match job timeout |
+
+## Audit Log
+
+Every credential issuance is logged in the **audit log**:
+
+```json
+{
+  "timestamp": "2024-01-15T15:00:00Z",
+  "action": "credential_issued",
+  "backend": "github",
+  "scopes": ["repo:read"],
+  "ttl": "1h",
+  "metadata": {
+    "agent_id": "my-agent",
+    "ip": "192.168.1.100"
+  }
+}
+```
+
+Query the audit log via the API or CLI:
+
+```bash
+creddy audit list --backend github --since 24h
+```
+
+## Signing Keys
+
+Creddy uses **Ed25519** keys to sign credentials. Keys are:
+
+- Generated automatically on first run
+- Stored in the data directory
+- Rotatable without downtime
+
+### Key Rotation
+
+```bash
+# Generate new key (old key remains valid)
+creddy keys rotate
+
+# List all keys
+creddy keys list
+
+# Revoke old key (after grace period)
+creddy keys revoke <key-id>
+```

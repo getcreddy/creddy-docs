@@ -1,0 +1,60 @@
+# Creddy
+
+**Ephemeral credentials for AI agents.**
+
+Creddy provides short-lived, scoped credentials for AI agents and automated systems. Instead of sharing long-lived API keys or passwords, Creddy generates temporary credentials that automatically expire—reducing risk and improving auditability.
+
+## Why Creddy?
+
+Traditional credential management wasn't designed for the age of AI agents. When you give an agent access to your systems, you typically have two bad options:
+
+1. **Share your credentials** — The agent now has your full access, forever
+2. **Create long-lived API keys** — Better, but still risky if compromised
+
+Creddy offers a third way: **ephemeral, scoped credentials** that exist only as long as needed.
+
+## Key Features
+
+- 🔐 **Ephemeral by default** — Credentials expire automatically (minutes to hours, not months)
+- 🎯 **Scoped access** — Grant only the permissions needed for the task
+- 📊 **Auditable** — Track every credential issued and used
+- 🤖 **Built for agents** — Simple API designed for programmatic access
+- 🔑 **Signed tokens** — Cryptographically signed JWTs for verification
+
+## How It Works
+
+```
+┌─────────────┐     1. Request credential      ┌─────────────┐
+│   Agent     │ ─────────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────────── │   Server    │
+└─────────────┘     2. Short-lived token       └─────────────┘
+       │
+       │ 3. Use token
+       ▼
+┌─────────────┐
+│  External   │
+│  Service    │
+└─────────────┘
+```
+
+1. Agent requests a credential for a specific backend (e.g., "github", "aws")
+2. Creddy issues a signed, time-limited token
+3. Agent uses the token to authenticate with the external service
+4. Token expires automatically — no cleanup needed
+
+## Quick Start
+
+```bash
+# Install creddy
+go install github.com/getcreddy/creddy@latest
+
+# Start the server
+creddy server
+
+# Request a credential (from your agent)
+curl -X POST http://localhost:8080/api/v1/credentials \
+  -H "Content-Type: application/json" \
+  -d '{"backend": "github", "ttl": "1h"}'
+```
+
+Ready to get started? Head to [Getting Started](/getting-started).
