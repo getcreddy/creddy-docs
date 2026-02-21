@@ -15,7 +15,7 @@ const navbar = (
   />
 )
 
-const footer = <Footer>MIT {new Date().getFullYear()} © Creddy</Footer>
+const footer = <Footer>Apache 2.0 {new Date().getFullYear()} © Creddy</Footer>
 
 export default async function RootLayout({
   children,
