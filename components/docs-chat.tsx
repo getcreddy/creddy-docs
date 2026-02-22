@@ -60,57 +60,55 @@ export function DocsChatSidebar() {
 
   return (
     <>
-      {/* Ask AI Button */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          position: 'fixed',
-          top: '14px',
-          right: isOpen ? `${PANEL_WIDTH + 20}px` : '360px',
-          zIndex: 99999,
-          pointerEvents: 'auto',
-          isolation: 'isolate',
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: '8px',
-          whiteSpace: 'nowrap',
-          borderRadius: '8px',
-          border: '1px solid #e5e7eb',
-          backgroundColor: isOpen ? '#ecfeff' : 'white',
-          padding: '6px 16px',
-          fontSize: '14px',
-          fontWeight: 500,
-          color: isOpen ? '#0891b2' : '#374151',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-          cursor: 'pointer',
-          transition: 'all 0.2s ease',
-        }}
-        onMouseEnter={(e) => {
-          if (!isOpen) {
+      {/* Ask AI Button - hidden when sidebar is open */}
+      {!isOpen && (
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          style={{
+            position: 'fixed',
+            top: '14px',
+            right: '360px',
+            zIndex: 99999,
+            pointerEvents: 'auto',
+            isolation: 'isolate',
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: '8px',
+            whiteSpace: 'nowrap',
+            borderRadius: '8px',
+            border: '1px solid #e5e7eb',
+            backgroundColor: 'white',
+            padding: '6px 16px',
+            fontSize: '14px',
+            fontWeight: 500,
+            color: '#374151',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = '#ecfeff';
             e.currentTarget.style.borderColor = '#22d3ee';
             e.currentTarget.style.color = '#0891b2';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isOpen) {
+          }}
+          onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'white';
             e.currentTarget.style.borderColor = '#e5e7eb';
             e.currentTarget.style.color = '#374151';
-          }
-        }}
-        onMouseDown={(e) => {
-          e.currentTarget.style.transform = 'scale(0.98)';
-        }}
-        onMouseUp={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-        }}
-      >
-        <Sparkles style={{ width: '16px', height: '16px', color: '#06b6d4' }} />
-        <span>Ask AI</span>
-      </button>
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.transform = 'scale(0.98)';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          <Sparkles style={{ width: '16px', height: '16px', color: '#06b6d4' }} />
+          <span>Ask AI</span>
+        </button>
+      )}
 
       {/* Sidebar Panel */}
       {isOpen && (
