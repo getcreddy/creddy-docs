@@ -3,21 +3,19 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { X, Send, Loader2, Sparkles, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Send, Loader2, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 const transport = new DefaultChatTransport({
   api: '/api/chat',
 });
 
-const PANEL_WIDTH = 480;
-const PANEL_WIDTH_EXPANDED = 680;
+const PANEL_WIDTH = 680;
 
 // Combined component with button + panel - ALL INLINE STYLES (no Tailwind on docs pages)
 export function DocsChatSidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { messages, sendMessage, status } = useChat({
@@ -25,7 +23,6 @@ export function DocsChatSidebar() {
   });
 
   const isLoading = status === 'streaming' || status === 'submitted';
-  const panelWidth = isExpanded ? PANEL_WIDTH_EXPANDED : PANEL_WIDTH;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -34,7 +31,7 @@ export function DocsChatSidebar() {
   // Push content when panel opens and hide TOC
   useEffect(() => {
     if (isOpen) {
-      document.body.style.marginRight = `${panelWidth}px`;
+      document.body.style.marginRight = `${PANEL_WIDTH}px`;
       document.body.style.transition = 'margin-right 0.2s ease';
       document.body.setAttribute('data-ai-panel-open', 'true');
     } else {
@@ -45,7 +42,7 @@ export function DocsChatSidebar() {
       document.body.style.marginRight = '0px';
       document.body.removeAttribute('data-ai-panel-open');
     };
-  }, [isOpen, panelWidth]);
+  }, [isOpen]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -70,7 +67,7 @@ export function DocsChatSidebar() {
         style={{
           position: 'fixed',
           top: '14px',
-          right: isOpen ? `${panelWidth + 20}px` : '360px',
+          right: isOpen ? `${PANEL_WIDTH + 20}px` : '360px',
           zIndex: 99999,
           pointerEvents: 'auto',
           isolation: 'isolate',
@@ -128,9 +125,8 @@ export function DocsChatSidebar() {
             flexDirection: 'column',
             borderLeft: '1px solid #e5e7eb',
             backgroundColor: 'white',
-            width: `${panelWidth}px`,
+            width: `${PANEL_WIDTH}px`,
             paddingTop: '64px',
-            transition: 'width 0.2s ease',
           }}
         >
           {/* Header */}
@@ -145,39 +141,21 @@ export function DocsChatSidebar() {
               <Sparkles style={{ width: '20px', height: '20px', color: '#06b6d4' }} />
               <span style={{ fontWeight: 500, color: '#111827' }}>Assistant</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                style={{
-                  borderRadius: '6px',
-                  padding: '6px',
-                  color: '#6b7280',
-                  cursor: 'pointer',
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                title={isExpanded ? 'Collapse' : 'Expand'}
-              >
-                {isExpanded ? <Minimize2 style={{ width: '16px', height: '16px' }} /> : <Maximize2 style={{ width: '16px', height: '16px' }} />}
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                style={{
-                  borderRadius: '6px',
-                  padding: '6px',
-                  color: '#6b7280',
-                  cursor: 'pointer',
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                <X style={{ width: '16px', height: '16px' }} />
-              </button>
-            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              style={{
+                borderRadius: '6px',
+                padding: '6px',
+                color: '#6b7280',
+                cursor: 'pointer',
+                border: 'none',
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              <X style={{ width: '16px', height: '16px' }} />
+            </button>
           </div>
 
           <p style={{
