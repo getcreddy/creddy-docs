@@ -25,27 +25,66 @@ Creddy uses a [GitHub App](https://docs.github.com/en/apps) to generate installa
 └─────────────┘
 ```
 
+## Key Concepts
+
+Before setup, understand these key points:
+
+- **One GitHub App** — Create a single GitHub App that Creddy uses to generate tokens
+- **Install per org/user** — Install the app into each GitHub org or user account where agents need access
+- **Max permissions on app** — The GitHub App needs the *maximum* permissions any agent might request. Creddy can only reduce permissions, never expand beyond what the app has.
+- **No webhooks needed** — Creddy only generates tokens; it doesn't receive events from GitHub
+
 ## Server Setup
 
 ### 1. Create a GitHub App
 
-1. Go to [GitHub Developer Settings](https://github.com/settings/apps/new)
-2. Fill in the basics:
-   - **Name**: `creddy-<your-org>` (must be unique)
-   - **Homepage URL**: Your server URL
-   - **Webhook**: Uncheck "Active" (not needed)
-3. Set permissions:
-   - **Repository permissions**: Contents (Read & Write), Metadata (Read)
-   - Add more as needed for your use case
-4. **Where can this app be installed?**: Only on this account (or Any account)
-5. Create the app and note the **App ID**
-6. Generate a **Private Key** (downloads as .pem file)
+1. Go to [github.com/settings/apps/new](https://github.com/settings/apps/new)
+
+2. **Basic info:**
+   - **Name**: `creddy-yourcompany` (must be globally unique)
+   - **Homepage URL**: Your Creddy server URL (or any URL)
+
+3. **Webhook:**
+   - ❌ **Uncheck "Active"** — Creddy doesn't need webhooks
+
+4. **Permissions** — Set the *maximum* any agent might need:
+   
+   | Permission | Level | Use Case |
+   |------------|-------|----------|
+   | Contents | Read & Write | Clone, push, read files |
+   | Metadata | Read | Required for all operations |
+   | Pull requests | Read & Write | Create/manage PRs |
+   | Issues | Read & Write | Create/manage issues |
+   | Actions | Read | Check workflow status |
+   | Commit statuses | Read & Write | Set status checks |
+
+   Start with Contents + Metadata. Add more as needed.
+
+5. **Where can this app be installed?**
+   - "Only on this account" for private use
+   - "Any account" if agents need access across orgs
+
+6. **Create the app** and note the **App ID** (shown at top of app settings)
+
+7. **Generate a private key:**
+   - Scroll to "Private keys" section
+   - Click "Generate a private key"
+   - Downloads a `.pem` file — keep this secure!
 
 ### 2. Install the App
 
-1. Go to your app's page → Install App
-2. Select the repositories the app should have access to
-3. Note the **Installation ID** from the URL (e.g., `/installations/12345678`)
+1. From your app's settings page, click **"Install App"** in the sidebar
+2. Choose the org or user account to install on
+3. Select **"All repositories"** or specific repos
+4. Click **Install**
+5. Note the **Installation ID** from the URL:
+   ```
+   https://github.com/settings/installations/12345678
+                                              ^^^^^^^^
+                                              This is your installation ID
+   ```
+
+Repeat for each org where agents need access.
 
 ### 3. Configure Creddy
 
