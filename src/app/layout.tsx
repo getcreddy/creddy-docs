@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { Geist, Geist_Mono, JetBrains_Mono } from 'next/font/google'
-import { DocsChat } from '@/components/docs-chat'
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
@@ -44,7 +43,6 @@ export default function RootLayout({
       </head>
       <body className={`font-sans antialiased ${geist.variable} ${geistMono.variable} ${jetbrainsMono.variable}`}>
         {children}
-        <DocsChat />
       </body>
     </html>
   )
