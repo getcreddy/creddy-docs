@@ -182,6 +182,29 @@ curl -H "Authorization: Bearer $GITHUB_TOKEN" \
   https://api.github.com/repos/owner/repo
 ```
 
+### Verifying Token Scopes
+
+To confirm tokens are properly scoped to specific repos:
+
+```bash
+# Get a scoped token
+export GH_TOKEN=$(creddy get github)
+
+# ✅ Should work - access your scoped repo
+gh api repos/owner/allowed-repo/issues
+
+# ❌ Should fail (404) - access a different private repo
+gh api repos/owner/other-repo/issues
+
+# ✅ Should work - create an issue in allowed repo
+gh issue create --repo owner/allowed-repo --title "Test" --body "Token scoping works!"
+
+# ❌ Should fail - create issue in different repo
+gh issue create --repo owner/other-repo --title "Test" --body "This should fail"
+```
+
+If the token is correctly scoped, you'll get a 404 "Not Found" when accessing repos outside your agent's permissions.
+
 ## Adding More Repos Later
 
 Agents can request additional repository access after enrollment:
