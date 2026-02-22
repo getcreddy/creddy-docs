@@ -9,7 +9,7 @@ const transport = new DefaultChatTransport({
   api: '/api/chat',
 });
 
-// Combined component with button + panel
+// Combined component with button + panel - ALL INLINE STYLES (no Tailwind on docs pages)
 export function DocsChatSidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -37,13 +37,10 @@ export function DocsChatSidebar() {
 
   return (
     <>
-      {/* Ask AI Button - fixed in header */}
+      {/* Ask AI Button */}
       <button
         type="button"
-        onClick={() => {
-          console.log('Ask AI clicked, isOpen:', !isOpen);
-          setIsOpen(!isOpen);
-        }}
+        onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'fixed',
           top: '14px',
@@ -91,51 +88,110 @@ export function DocsChatSidebar() {
       {/* Sidebar Panel */}
       {isOpen && (
         <div 
-          className={`fixed top-0 right-0 z-40 flex h-screen flex-col border-l border-gray-200 bg-white shadow-xl dark:border-gray-800 dark:bg-gray-950 ${
-            isExpanded ? 'w-[500px]' : 'w-[340px]'
-          }`}
-          style={{ paddingTop: '64px' }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            zIndex: 9999,
+            display: 'flex',
+            height: '100vh',
+            flexDirection: 'column',
+            borderLeft: '1px solid #e5e7eb',
+            backgroundColor: 'white',
+            boxShadow: '-4px 0 20px rgba(0,0,0,0.1)',
+            width: isExpanded ? '500px' : '340px',
+            paddingTop: '64px',
+          }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-5 text-cyan-500" />
-              <span className="font-medium text-gray-900 dark:text-gray-100">Assistant</span>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid #e5e7eb',
+            padding: '12px 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles style={{ width: '20px', height: '20px', color: '#06b6d4' }} />
+              <span style={{ fontWeight: 500, color: '#111827' }}>Assistant</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                style={{
+                  borderRadius: '6px',
+                  padding: '6px',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                 title={isExpanded ? 'Collapse' : 'Expand'}
               >
-                {isExpanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+                {isExpanded ? <Minimize2 style={{ width: '16px', height: '16px' }} /> : <Maximize2 style={{ width: '16px', height: '16px' }} />}
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                style={{
+                  borderRadius: '6px',
+                  padding: '6px',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
-                <X className="size-4" />
+                <X style={{ width: '16px', height: '16px' }} />
               </button>
             </div>
           </div>
 
-          <p className="border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-500">
+          <p style={{
+            borderBottom: '1px solid #e5e7eb',
+            padding: '8px 16px',
+            fontSize: '12px',
+            color: '#6b7280',
+            margin: 0,
+          }}>
             Responses are generated using AI and may contain mistakes.
           </p>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
             {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center text-gray-500">
-                <Sparkles className="mb-3 size-8 text-gray-300 dark:text-gray-600" />
-                <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">How can I help?</p>
-                <p className="text-sm">Ask me anything about Creddy</p>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <div style={{
+                display: 'flex',
+                height: '100%',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                color: '#6b7280',
+              }}>
+                <Sparkles style={{ marginBottom: '12px', width: '32px', height: '32px', color: '#d1d5db' }} />
+                <p style={{ marginBottom: '4px', fontWeight: 500, color: '#374151' }}>How can I help?</p>
+                <p style={{ fontSize: '14px', margin: 0 }}>Ask me anything about Creddy</p>
+                <div style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px' }}>
                   {['How do I get started?', 'What are scopes?', 'How does enrollment work?'].map((q) => (
                     <button
                       key={q}
                       onClick={() => setInput(q)}
-                      className="rounded-full border border-gray-200 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+                      style={{
+                        borderRadius: '9999px',
+                        border: '1px solid #e5e7eb',
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        color: '#4b5563',
+                        cursor: 'pointer',
+                        backgroundColor: 'white',
+                        transition: 'background-color 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f9fafb'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
                     >
                       {q}
                     </button>
@@ -143,23 +199,29 @@ export function DocsChatSidebar() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    style={{
+                      display: 'flex',
+                      justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                    }}
                   >
                     <div
-                      className={`max-w-[90%] rounded-lg px-3 py-2 text-sm ${
-                        message.role === 'user'
-                          ? 'bg-cyan-500 text-white'
-                          : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
-                      }`}
+                      style={{
+                        maxWidth: '90%',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        fontSize: '14px',
+                        backgroundColor: message.role === 'user' ? '#06b6d4' : '#f3f4f6',
+                        color: message.role === 'user' ? 'white' : '#111827',
+                      }}
                     >
                       {message.parts?.map((part, i) => {
                         if (part.type === 'text') {
                           return part.text.split('\n').map((line, j) => (
-                            <p key={`${i}-${j}`} className="mb-1 last:mb-0">
+                            <p key={`${i}-${j}`} style={{ margin: '0 0 4px 0' }}>
                               {line || '\u00A0'}
                             </p>
                           ));
@@ -170,9 +232,18 @@ export function DocsChatSidebar() {
                   </div>
                 ))}
                 {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                      <Loader2 className="size-4 animate-spin" />
+                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      borderRadius: '8px',
+                      backgroundColor: '#f3f4f6',
+                      padding: '8px 12px',
+                      fontSize: '14px',
+                      color: '#6b7280',
+                    }}>
+                      <Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
                       Thinking...
                     </div>
                   </div>
@@ -183,32 +254,63 @@ export function DocsChatSidebar() {
           </div>
 
           {/* Input */}
-          <div className="border-t border-gray-200 p-4 dark:border-gray-800">
-            <form onSubmit={handleSubmit} className="relative">
+          <div style={{ borderTop: '1px solid #e5e7eb', padding: '16px' }}>
+            <form onSubmit={handleSubmit} style={{ position: 'relative' }}>
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask a question..."
-                className="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-4 pr-12 text-sm outline-none transition-colors placeholder:text-gray-400 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-cyan-500"
                 disabled={isLoading}
+                style={{
+                  width: '100%',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: 'white',
+                  padding: '10px 48px 10px 16px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#06b6d4'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; }}
               />
               <button 
                 type="submit" 
                 disabled={isLoading || !input.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-gray-400 transition-colors hover:text-cyan-500 disabled:opacity-50 disabled:hover:text-gray-400"
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  borderRadius: '6px',
+                  padding: '6px',
+                  color: input.trim() ? '#06b6d4' : '#9ca3af',
+                  cursor: input.trim() ? 'pointer' : 'default',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  opacity: isLoading ? 0.5 : 1,
+                }}
               >
-                <Send className="size-4" />
+                <Send style={{ width: '16px', height: '16px' }} />
               </button>
             </form>
           </div>
         </div>
       )}
+
+      {/* Spinner keyframe animation */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </>
   );
 }
 
-// Keep legacy floating button for landing page
+// Legacy floating button for landing page (uses Tailwind - only loaded there)
 export function DocsChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
