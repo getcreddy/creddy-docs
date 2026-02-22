@@ -3,6 +3,8 @@ export default {
   'getting-started': 'Getting Started',
   concepts: 'Concepts',
   server: 'Server',
+  github: 'GitHub Integration',
+  examples: 'Examples',
   api: 'API Reference',
   cli: 'CLI Reference',
 }

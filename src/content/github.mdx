@@ -1,0 +1,201 @@
+# GitHub Integration
+
+Creddy's GitHub integration provides scoped, ephemeral installation tokens for your AI agents. Instead of sharing personal access tokens, agents request short-lived tokens with access to only the repositories they need.
+
+## How It Works
+
+Creddy uses a [GitHub App](https://docs.github.com/en/apps) to generate installation tokens. When an agent requests a GitHub credential:
+
+1. Agent authenticates with Creddy using its agent token
+2. Creddy validates the agent's scopes (which repos it can access)
+3. Creddy generates a GitHub App installation token scoped to those repos
+4. Token is returned to the agent (expires in 1 hour max)
+
+```
+┌─────────────┐     creddy get github      ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘     ghs_xxxxx (1h TTL)     └──────┬──────┘
+       │                                          │
+       │ git clone / gh api                       │ GitHub App
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│   GitHub    │ ◀────────────────────────── │  GitHub App │
+│   (repos)   │                            └─────────────┘
+└─────────────┘
+```
+
+## Server Setup
+
+### 1. Create a GitHub App
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/apps/new)
+2. Fill in the basics:
+   - **Name**: `creddy-<your-org>` (must be unique)
+   - **Homepage URL**: Your server URL
+   - **Webhook**: Uncheck "Active" (not needed)
+3. Set permissions:
+   - **Repository permissions**: Contents (Read & Write), Metadata (Read)
+   - Add more as needed for your use case
+4. **Where can this app be installed?**: Only on this account (or Any account)
+5. Create the app and note the **App ID**
+6. Generate a **Private Key** (downloads as .pem file)
+
+### 2. Install the App
+
+1. Go to your app's page → Install App
+2. Select the repositories the app should have access to
+3. Note the **Installation ID** from the URL (e.g., `/installations/12345678`)
+
+### 3. Configure Creddy
+
+```bash
+# Add the GitHub backend
+creddy backend add github \
+  --app-id 123456 \
+  --installation-id 12345678 \
+  --private-key /path/to/app.pem
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "github",
+    "name": "github",
+    "config": {
+      "app_id": 123456,
+      "installation_id": 12345678,
+      "private_key_pem": "-----BEGIN RSA PRIVATE KEY-----\n..."
+    }
+  }'
+```
+
+## Agent Enrollment
+
+Agents request access to specific repositories during enrollment:
+
+```bash
+# Agent requests enrollment with repo access
+creddy enroll http://creddy-server:8400 --name my-agent \
+  --can github:owner/repo1 \
+  --can github:owner/repo2
+```
+
+### Scope Format
+
+| Scope | Description |
+|-------|-------------|
+| `github:owner/repo` | Access to a specific repository (read/write) |
+| `github:owner/repo:read` | Read-only access to a repository |
+| `github:owner/repo:write` | Explicit read/write access |
+| `github:owner/*` | Access to all repos under an owner |
+| `github:*` | Access to all repos the app can see |
+
+### Read-Only Scopes
+
+Suffix `:read` to restrict an agent to read-only access:
+
+```bash
+creddy enroll http://creddy-server:8400 --name ci-bot \
+  --can github:myorg/frontend:read \
+  --can github:myorg/backend:read
+```
+
+This agent can only request read-only tokens—even if it tries `--read-only=false`, Creddy will enforce the ceiling.
+
+## Requesting Tokens
+
+Once enrolled and approved, agents can request tokens:
+
+```bash
+# Get a token for all your repos
+creddy get github
+
+# Get a read-only token
+creddy get github --read-only
+
+# Narrow to specific repos (subset of what you're allowed)
+creddy get github --repo owner/repo1
+
+# Custom TTL (max 1 hour)
+creddy get github --ttl 30m
+```
+
+### Using the Token
+
+The returned token works with any GitHub API client:
+
+```bash
+# Set the token
+export GITHUB_TOKEN=$(creddy get github)
+
+# Use with git
+git clone https://x-access-token:${GITHUB_TOKEN}@github.com/owner/repo.git
+
+# Use with gh CLI
+gh api repos/owner/repo
+
+# Use with curl
+curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://api.github.com/repos/owner/repo
+```
+
+## Adding More Repos Later
+
+Agents can request additional repository access after enrollment:
+
+```bash
+# Agent requests more access
+creddy request --can github:owner/repo3
+
+# On the server, admin sees the request
+creddy pending
+# ID          TYPE        NAME        SCOPES
+# abc-123     amendment   my-agent    ["github:owner/repo3"]
+
+# Admin approves
+creddy approve abc-123
+```
+
+Scopes are merged—the agent now has access to repo1, repo2, and repo3.
+
+## Multi-Organization Setup
+
+GitHub App installation tokens are scoped to a single installation (typically one org or user account). If your agents need access to repos across multiple orgs:
+
+1. Install the GitHub App on each org
+2. Configure multiple backends in Creddy:
+   ```bash
+   creddy backend add github-myorg --app-id 123 --installation-id 111 --private-key app.pem
+   creddy backend add github-partner --app-id 123 --installation-id 222 --private-key app.pem
+   ```
+3. Agents request from the appropriate backend:
+   ```bash
+   creddy get github-myorg
+   creddy get github-partner
+   ```
+
+## Token Permissions
+
+The token inherits the permissions configured on your GitHub App, reduced by any scope restrictions:
+
+| App Permission | Agent Scope | Token Gets |
+|----------------|-------------|------------|
+| Contents: Write | `github:owner/repo` | Contents: Write |
+| Contents: Write | `github:owner/repo:read` | Contents: Read |
+| Contents: Read | `github:owner/repo` | Contents: Read |
+
+You cannot grant more permissions than the app has—Creddy only reduces, never expands.
+
+## Audit Trail
+
+Every token issued is logged:
+
+```bash
+creddy audit --limit 10
+```
+
+Shows who requested what, when, and from where—useful for security reviews and compliance.
