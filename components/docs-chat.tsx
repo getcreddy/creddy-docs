@@ -65,6 +65,7 @@ export function DocsChatSidebar() {
   const [input, setInput] = useState('');
   const [isDark, setIsDark] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   
   const { messages, sendMessage, status } = useChat({
     transport,
@@ -124,11 +125,15 @@ export function DocsChatSidebar() {
     const message = input;
     setInput('');
     await sendMessage({ text: message });
+    // Keep focus on input for continued conversation
+    inputRef.current?.focus();
   };
 
   const handleQuickQuestion = async (question: string) => {
     if (isLoading) return;
     await sendMessage({ text: question });
+    // Focus input after quick question
+    inputRef.current?.focus();
   };
 
   return (
@@ -416,6 +421,7 @@ export function DocsChatSidebar() {
           <div style={{ borderTop: `1px solid ${c.border}`, padding: '16px' }}>
             <form onSubmit={handleSubmit} style={{ position: 'relative' }}>
               <input
+                ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
