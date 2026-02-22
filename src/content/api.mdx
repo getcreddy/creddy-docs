@@ -8,7 +8,172 @@ Creddy exposes a REST API for credential management.
 http://localhost:8080/api/v1
 ```
 
-## Endpoints
+## Authentication
+
+All endpoints (except enrollment initiation and health) require request signing. See [Client Authentication](/docs/authentication) for details.
+
+```
+X-Creddy-Client: cli_xyz789
+X-Creddy-Timestamp: 1708531200
+X-Creddy-Signature: base64(...)
+```
+
+---
+
+## Enrollment Endpoints
+
+### Initiate Enrollment
+
+Start the enrollment process for a new client. No authentication required.
+
+```
+POST /api/v1/enrollments
+```
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `public_key` | string | Yes | Base64-encoded Ed25519 public key |
+| `name` | string | Yes | Human-readable client name |
+| `metadata` | object | No | Client metadata (hostname, user, OS) |
+
+#### Example Request
+
+```bash
+curl -X POST http://localhost:8080/api/v1/enrollments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "public_key": "MCowBQYDK2VwAyEA...",
+    "name": "my-laptop",
+    "metadata": {
+      "hostname": "marcbook.local",
+      "username": "marc",
+      "os": "darwin",
+      "arch": "arm64"
+    }
+  }'
+```
+
+#### Response
+
+```json
+{
+  "enrollment_id": "enr_abc123",
+  "status": "pending",
+  "expires_at": "2024-01-15T16:05:00Z",
+  "poll_interval_ms": 2000
+}
+```
+
+---
+
+### Poll Enrollment Status
+
+Check if an enrollment has been approved.
+
+```
+GET /api/v1/enrollments/{enrollment_id}/status
+```
+
+#### Response (Pending)
+
+```json
+{
+  "status": "pending",
+  "expires_at": "2024-01-15T16:05:00Z"
+}
+```
+
+#### Response (Approved)
+
+```json
+{
+  "status": "approved",
+  "client_id": "cli_xyz789",
+  "server_public_key": "MCowBQYDK2VwAyEA..."
+}
+```
+
+#### Response (Denied)
+
+```json
+{
+  "status": "denied",
+  "reason": "Unknown device"
+}
+```
+
+---
+
+### List Pending Enrollments (Admin)
+
+```
+GET /api/v1/admin/enrollments?status=pending
+```
+
+#### Response
+
+```json
+{
+  "enrollments": [
+    {
+      "enrollment_id": "enr_abc123",
+      "name": "my-laptop",
+      "public_key_fingerprint": "SHA256:xK3E8f...",
+      "metadata": {
+        "hostname": "marcbook.local",
+        "username": "marc"
+      },
+      "requested_at": "2024-01-15T16:00:00Z",
+      "expires_at": "2024-01-15T16:05:00Z",
+      "ip_address": "192.168.1.50"
+    }
+  ]
+}
+```
+
+---
+
+### Approve Enrollment (Admin)
+
+```
+POST /api/v1/admin/enrollments/{enrollment_id}/approve
+```
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `role` | string | No | Client role: `operator` (default) or `admin` |
+| `note` | string | No | Admin note |
+
+#### Response
+
+```json
+{
+  "client_id": "cli_xyz789",
+  "status": "approved"
+}
+```
+
+---
+
+### Deny Enrollment (Admin)
+
+```
+POST /api/v1/admin/enrollments/{enrollment_id}/deny
+```
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `reason` | string | No | Reason for denial |
+
+---
+
+## Credential Endpoints
 
 ### Issue Credential
 
@@ -32,18 +197,17 @@ POST /api/v1/credentials
 ```bash
 curl -X POST http://localhost:8080/api/v1/credentials \
   -H "Content-Type: application/json" \
+  -H "X-Creddy-Client: cli_xyz789" \
+  -H "X-Creddy-Timestamp: 1708531200" \
+  -H "X-Creddy-Signature: ..." \
   -d '{
     "backend": "github",
     "ttl": "1h",
-    "scopes": ["repo:read", "issues:write"],
-    "metadata": {
-      "agent_id": "my-agent",
-      "task": "update-readme"
-    }
+    "scopes": ["repo:read", "issues:write"]
   }'
 ```
 
-#### Example Response
+#### Response
 
 ```json
 {
@@ -66,7 +230,7 @@ Retrieve credential metadata (not the token itself).
 GET /api/v1/credentials/{id}
 ```
 
-#### Example Response
+#### Response
 
 ```json
 {
@@ -89,12 +253,6 @@ Revoke a credential before expiration.
 DELETE /api/v1/credentials/{id}
 ```
 
-#### Example
-
-```bash
-curl -X DELETE http://localhost:8080/api/v1/credentials/cred_abc123
-```
-
 #### Response
 
 ```json
@@ -107,15 +265,61 @@ curl -X DELETE http://localhost:8080/api/v1/credentials/cred_abc123
 
 ---
 
-### List Backends
+## Client Management (Admin)
 
-List configured backends.
+### List Clients
+
+```
+GET /api/v1/admin/clients
+```
+
+#### Response
+
+```json
+{
+  "clients": [
+    {
+      "client_id": "cli_xyz789",
+      "name": "my-laptop",
+      "role": "operator",
+      "public_key_fingerprint": "SHA256:xK3E8f...",
+      "created_at": "2024-01-15T15:00:00Z",
+      "last_seen": "2024-01-15T16:30:00Z",
+      "status": "active"
+    }
+  ]
+}
+```
+
+---
+
+### Revoke Client
+
+```
+DELETE /api/v1/admin/clients/{client_id}
+```
+
+#### Response
+
+```json
+{
+  "client_id": "cli_xyz789",
+  "status": "revoked",
+  "revoked_at": "2024-01-15T16:00:00Z"
+}
+```
+
+---
+
+## Backend Endpoints
+
+### List Backends
 
 ```
 GET /api/v1/backends
 ```
 
-#### Example Response
+#### Response
 
 ```json
 {
@@ -126,12 +330,6 @@ GET /api/v1/backends
       "default_ttl": "1h",
       "max_ttl": "24h",
       "allowed_scopes": ["repo:*", "issues:*"]
-    },
-    {
-      "id": "aws-prod",
-      "type": "aws",
-      "default_ttl": "15m",
-      "max_ttl": "1h"
     }
   ]
 }
@@ -141,19 +339,21 @@ GET /api/v1/backends
 
 ### Get Backend
 
-Get details for a specific backend.
-
 ```
 GET /api/v1/backends/{id}
 ```
 
 ---
 
+## Other Endpoints
+
 ### Health Check
 
 ```
 GET /health
 ```
+
+No authentication required.
 
 #### Response
 
@@ -168,8 +368,6 @@ GET /health
 
 ### Audit Log
 
-Query the audit log.
-
 ```
 GET /api/v1/audit
 ```
@@ -179,15 +377,12 @@ GET /api/v1/audit
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `backend` | string | Filter by backend |
-| `since` | string | Start time (ISO 8601 or duration like "24h") |
+| `client_id` | string | Filter by client |
+| `since` | string | Start time (ISO 8601 or duration) |
 | `until` | string | End time |
 | `limit` | int | Max results (default 100) |
 
-#### Example
-
-```bash
-curl "http://localhost:8080/api/v1/audit?backend=github&since=24h&limit=50"
-```
+---
 
 ## Error Responses
 
@@ -207,8 +402,10 @@ All errors follow this format:
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
 | `invalid_request` | 400 | Invalid request body or parameters |
-| `backend_not_found` | 404 | Backend doesn't exist |
-| `credential_not_found` | 404 | Credential doesn't exist |
-| `scope_not_allowed` | 403 | Requested scope not permitted |
-| `ttl_exceeded` | 400 | Requested TTL exceeds maximum |
+| `unauthorized` | 401 | Missing or invalid authentication |
+| `forbidden` | 403 | Insufficient permissions |
+| `not_found` | 404 | Resource not found |
+| `enrollment_expired` | 410 | Enrollment request has expired |
+| `enrollment_denied` | 403 | Enrollment was denied |
+| `client_revoked` | 403 | Client has been revoked |
 | `internal_error` | 500 | Server error |

@@ -7,10 +7,219 @@ Creddy command-line interface.
 | Flag | Description |
 |------|-------------|
 | `--config` | Path to config file |
-| `--server` | Server URL (for client commands) |
+| `--server` | Server URL |
 | `-v, --verbose` | Verbose output |
 
-## Commands
+---
+
+## Client Commands
+
+### `creddy init`
+
+Initialize the client and enroll with a server.
+
+```bash
+creddy init [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--name` | hostname | Client name |
+| `--server` | | Server URL (required) |
+| `--admin-token` | | Bootstrap admin token (first admin only) |
+| `--timeout` | `5m` | Enrollment timeout |
+
+#### Examples
+
+```bash
+# Standard enrollment (requires admin approval)
+creddy init --name my-laptop --server https://creddy.example.com
+
+# Bootstrap first admin with token
+creddy init --name admin-laptop --server https://creddy.example.com \
+  --admin-token ctk_XXXXX
+```
+
+---
+
+### `creddy get`
+
+Request a credential from a backend.
+
+```bash
+creddy get <backend> [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--ttl` | Backend default | Time to live |
+| `--scope` | | Scopes (repeatable) |
+| `-o, --output` | `text` | Output format (text, json, env) |
+
+#### Examples
+
+```bash
+# Basic usage
+creddy get github
+
+# With TTL and scopes
+creddy get github --ttl 30m --scope repo:read --scope issues:write
+
+# Output as environment variables
+creddy get aws --output env
+export $(creddy get aws -o env)
+```
+
+---
+
+### `creddy backends`
+
+List available backends.
+
+```bash
+creddy backends [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output` | Output format (text, json) |
+
+---
+
+### `creddy rotate-key`
+
+Rotate the client's keypair.
+
+```bash
+creddy rotate-key [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--grace-period` | `24h` | How long to accept old key |
+
+---
+
+### `creddy status`
+
+Show client status and server connection.
+
+```bash
+creddy status
+```
+
+#### Example Output
+
+```
+Client: my-laptop (cli_xyz789)
+Server: https://creddy.example.com
+Status: connected
+Role:   operator
+
+Fingerprint: SHA256:xK3E8f...
+Last sync:   2024-01-15 16:30:00
+```
+
+---
+
+## Admin Commands
+
+### `creddy admin enrollments`
+
+List pending enrollment requests.
+
+```bash
+creddy admin enrollments [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--status` | Filter by status (pending, approved, denied) |
+| `-o, --output` | Output format (text, json) |
+
+#### Example Output
+
+```
+ID            NAME        USER    HOST              IP              EXPIRES
+enr_abc123    my-laptop   marc    marcbook.local    192.168.1.50    4:32
+enr_def456    ci-runner   root    ci-node-01        10.0.0.50       2:15
+```
+
+---
+
+### `creddy admin approve`
+
+Approve an enrollment request.
+
+```bash
+creddy admin approve <enrollment_id> [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--role` | `operator` | Client role (operator, admin) |
+| `--note` | | Admin note |
+
+#### Example
+
+```bash
+creddy admin approve enr_abc123 --role admin --note "Marc's laptop"
+```
+
+---
+
+### `creddy admin deny`
+
+Deny an enrollment request.
+
+```bash
+creddy admin deny <enrollment_id> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--reason` | Reason for denial |
+
+---
+
+### `creddy admin clients`
+
+List registered clients.
+
+```bash
+creddy admin clients [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--status` | Filter by status (active, revoked) |
+| `-o, --output` | Output format (text, json) |
+
+#### Example Output
+
+```
+ID            NAME        ROLE      LAST SEEN           STATUS
+cli_xyz789    my-laptop   admin     2024-01-15 16:30    active
+cli_abc123    ci-runner   operator  2024-01-15 14:00    active
+```
+
+---
+
+### `creddy admin revoke`
+
+Revoke a client's access.
+
+```bash
+creddy admin revoke <client_id> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--reason` | Reason for revocation |
+
+---
+
+## Server Commands
 
 ### `creddy server`
 
@@ -28,60 +237,43 @@ creddy server [flags]
 
 ---
 
-### `creddy issue`
+### `creddy backend add`
 
-Issue a new credential.
-
-```bash
-creddy issue <backend> [flags]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--ttl` | Backend default | Time to live |
-| `--scope` | Backend default | Scopes (repeatable) |
-| `--meta` | | Metadata key=value (repeatable) |
-| `-o, --output` | `text` | Output format (text, json) |
-
-#### Examples
+Add a backend to the server.
 
 ```bash
-# Basic usage
-creddy issue github
-
-# With TTL and scopes
-creddy issue github --ttl 30m --scope repo:read --scope issues:write
-
-# With metadata
-creddy issue github --meta agent=my-agent --meta task=deploy
-
-# JSON output
-creddy issue github -o json
-```
-
----
-
-### `creddy revoke`
-
-Revoke a credential.
-
-```bash
-creddy revoke <credential-id>
-```
-
----
-
-### `creddy backends`
-
-List configured backends.
-
-```bash
-creddy backends [flags]
+creddy backend add <name> --type <type> [flags]
 ```
 
 | Flag | Description |
 |------|-------------|
-| `-o, --output` | Output format (text, json) |
+| `--type` | Backend type (github, aws, generic) |
+| `--config` | Path to config file |
+
+#### Example
+
+```bash
+creddy backend add github --type github \
+  --app-id 12345 \
+  --private-key ./github-app.pem
+```
+
+---
+
+### `creddy keys`
+
+Manage server signing keys.
+
+```bash
+creddy keys <subcommand>
+```
+
+#### Subcommands
+
+- `creddy keys list` — List all signing keys
+- `creddy keys rotate` — Generate a new signing key
+- `creddy keys revoke <key-id>` — Revoke a signing key
+- `creddy keys export <key-id>` — Export public key
 
 ---
 
@@ -96,77 +288,23 @@ creddy audit [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--backend` | | Filter by backend |
+| `--client` | | Filter by client |
 | `--since` | `24h` | Start time |
 | `--until` | | End time |
 | `--limit` | `100` | Max results |
 | `-o, --output` | `text` | Output format |
 
-#### Examples
-
-```bash
-# Last 24 hours
-creddy audit
-
-# Specific backend
-creddy audit --backend github --since 7d
-
-# JSON output
-creddy audit -o json
-```
-
 ---
-
-### `creddy keys`
-
-Manage signing keys.
-
-```bash
-creddy keys <subcommand>
-```
-
-#### Subcommands
-
-**`creddy keys list`** — List all signing keys
-
-```bash
-creddy keys list
-```
-
-**`creddy keys rotate`** — Generate a new signing key
-
-```bash
-creddy keys rotate
-```
-
-**`creddy keys revoke`** — Revoke a signing key
-
-```bash
-creddy keys revoke <key-id>
-```
-
-**`creddy keys export`** — Export public key
-
-```bash
-creddy keys export <key-id>
-```
-
----
-
-### `creddy version`
-
-Print version information.
-
-```bash
-creddy version
-```
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `CREDDY_CONFIG` | Config file path |
 | `CREDDY_SERVER` | Server URL |
+| `CREDDY_CONFIG` | Config file path |
 | `CREDDY_DATA_DIR` | Data directory |
+
+---
 
 ## Exit Codes
 
@@ -176,3 +314,5 @@ creddy version
 | `1` | General error |
 | `2` | Invalid arguments |
 | `3` | Connection error |
+| `4` | Authentication error |
+| `5` | Enrollment denied/expired |
