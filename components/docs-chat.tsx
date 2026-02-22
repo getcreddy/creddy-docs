@@ -13,10 +13,57 @@ const transport = new DefaultChatTransport({
 
 const PANEL_WIDTH = 680;
 
+// Dark mode color palette
+const colors = {
+  light: {
+    bg: '#ffffff',
+    bgSecondary: '#f3f4f6',
+    bgTertiary: '#f9fafb',
+    border: '#e5e7eb',
+    borderStrong: '#d1d5db',
+    text: '#111827',
+    textSecondary: '#374151',
+    textMuted: '#6b7280',
+    textInverse: '#ffffff',
+    accent: '#06b6d4',
+    accentHover: '#0891b2',
+    accentBg: '#ecfeff',
+    userBubble: '#06b6d4',
+    assistantBubble: '#f3f4f6',
+    codeBg: '#1f2937',
+    codeText: '#e5e7eb',
+    inlineCodeBg: '#e5e7eb',
+    tableBorder: '#e5e7eb',
+    tableHeaderBg: '#f9fafb',
+  },
+  dark: {
+    bg: '#0a0a0a',
+    bgSecondary: '#171717',
+    bgTertiary: '#262626',
+    border: '#262626',
+    borderStrong: '#404040',
+    text: '#fafafa',
+    textSecondary: '#d4d4d4',
+    textMuted: '#a3a3a3',
+    textInverse: '#0a0a0a',
+    accent: '#22d3ee',
+    accentHover: '#06b6d4',
+    accentBg: '#164e63',
+    userBubble: '#0891b2',
+    assistantBubble: '#262626',
+    codeBg: '#171717',
+    codeText: '#e5e7eb',
+    inlineCodeBg: '#404040',
+    tableBorder: '#404040',
+    tableHeaderBg: '#262626',
+  },
+};
+
 // Combined component with button + panel - ALL INLINE STYLES (no Tailwind on docs pages)
 export function DocsChatSidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [isDark, setIsDark] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { messages, sendMessage, status } = useChat({
@@ -24,6 +71,31 @@ export function DocsChatSidebar() {
   });
 
   const isLoading = status === 'streaming' || status === 'submitted';
+  const c = isDark ? colors.dark : colors.light;
+
+  // Detect dark mode from Nextra's .dark class or system preference
+  useEffect(() => {
+    const checkDarkMode = () => {
+      const hasDarkClass = document.documentElement.classList.contains('dark');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setIsDark(hasDarkClass || prefersDark);
+    };
+    
+    checkDarkMode();
+    
+    // Watch for class changes on html element (Nextra toggles .dark)
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    
+    // Also watch system preference
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', checkDarkMode);
+    
+    return () => {
+      observer.disconnect();
+      mediaQuery.removeEventListener('change', checkDarkMode);
+    };
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,25 +151,25 @@ export function DocsChatSidebar() {
             gap: '8px',
             whiteSpace: 'nowrap',
             borderRadius: '8px',
-            border: '1px solid #e5e7eb',
-            backgroundColor: 'white',
+            border: `1px solid ${c.border}`,
+            backgroundColor: c.bg,
             padding: '6px 16px',
             fontSize: '14px',
             fontWeight: 500,
-            color: '#374151',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            color: c.textSecondary,
+            boxShadow: isDark ? 'none' : '0 1px 2px rgba(0,0,0,0.05)',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#ecfeff';
-            e.currentTarget.style.borderColor = '#22d3ee';
-            e.currentTarget.style.color = '#0891b2';
+            e.currentTarget.style.backgroundColor = c.accentBg;
+            e.currentTarget.style.borderColor = c.accent;
+            e.currentTarget.style.color = c.accentHover;
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'white';
-            e.currentTarget.style.borderColor = '#e5e7eb';
-            e.currentTarget.style.color = '#374151';
+            e.currentTarget.style.backgroundColor = c.bg;
+            e.currentTarget.style.borderColor = c.border;
+            e.currentTarget.style.color = c.textSecondary;
           }}
           onMouseDown={(e) => {
             e.currentTarget.style.transform = 'scale(0.98)';
@@ -106,7 +178,7 @@ export function DocsChatSidebar() {
             e.currentTarget.style.transform = 'scale(1)';
           }}
         >
-          <Sparkles style={{ width: '16px', height: '16px', color: '#06b6d4' }} />
+          <Sparkles style={{ width: '16px', height: '16px', color: c.accent }} />
           <span>Ask AI</span>
         </button>
       )}
@@ -122,8 +194,8 @@ export function DocsChatSidebar() {
             display: 'flex',
             height: '100vh',
             flexDirection: 'column',
-            borderLeft: '1px solid #e5e7eb',
-            backgroundColor: 'white',
+            borderLeft: `1px solid ${c.border}`,
+            backgroundColor: c.bg,
             width: `${PANEL_WIDTH}px`,
             paddingTop: '64px',
           }}
@@ -133,24 +205,24 @@ export function DocsChatSidebar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid #e5e7eb',
+            borderBottom: `1px solid ${c.border}`,
             padding: '12px 16px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles style={{ width: '20px', height: '20px', color: '#06b6d4' }} />
-              <span style={{ fontWeight: 500, color: '#111827' }}>Assistant</span>
+              <Sparkles style={{ width: '20px', height: '20px', color: c.accent }} />
+              <span style={{ fontWeight: 500, color: c.text }}>Assistant</span>
             </div>
             <button
               onClick={() => setIsOpen(false)}
               style={{
                 borderRadius: '6px',
                 padding: '6px',
-                color: '#6b7280',
+                color: c.textMuted,
                 cursor: 'pointer',
                 border: 'none',
                 backgroundColor: 'transparent',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = c.bgSecondary; }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
               <X style={{ width: '16px', height: '16px' }} />
@@ -158,10 +230,10 @@ export function DocsChatSidebar() {
           </div>
 
           <p style={{
-            borderBottom: '1px solid #e5e7eb',
+            borderBottom: `1px solid ${c.border}`,
             padding: '8px 16px',
             fontSize: '12px',
-            color: '#6b7280',
+            color: c.textMuted,
             margin: 0,
           }}>
             Responses are generated using AI and may contain mistakes.
@@ -177,10 +249,10 @@ export function DocsChatSidebar() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 textAlign: 'center',
-                color: '#6b7280',
+                color: c.textMuted,
               }}>
-                <Sparkles style={{ marginBottom: '12px', width: '32px', height: '32px', color: '#d1d5db' }} />
-                <p style={{ marginBottom: '4px', fontWeight: 500, color: '#374151' }}>How can I help?</p>
+                <Sparkles style={{ marginBottom: '12px', width: '32px', height: '32px', color: c.borderStrong }} />
+                <p style={{ marginBottom: '4px', fontWeight: 500, color: c.textSecondary }}>How can I help?</p>
                 <p style={{ fontSize: '14px', margin: 0 }}>Ask me anything about Creddy</p>
                 <div style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px' }}>
                   {['How do I get started?', 'What are scopes?', 'How does enrollment work?'].map((q) => (
@@ -190,17 +262,17 @@ export function DocsChatSidebar() {
                       disabled={isLoading}
                       style={{
                         borderRadius: '9999px',
-                        border: '1px solid #e5e7eb',
+                        border: `1px solid ${c.border}`,
                         padding: '6px 12px',
                         fontSize: '12px',
-                        color: '#4b5563',
+                        color: c.textSecondary,
                         cursor: isLoading ? 'default' : 'pointer',
-                        backgroundColor: 'white',
+                        backgroundColor: c.bg,
                         transition: 'background-color 0.15s',
                         opacity: isLoading ? 0.5 : 1,
                       }}
-                      onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = '#f9fafb'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                      onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = c.bgTertiary; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = c.bg; }}
                     >
                       {q}
                     </button>
@@ -223,8 +295,8 @@ export function DocsChatSidebar() {
                         borderRadius: '8px',
                         padding: '8px 12px',
                         fontSize: '14px',
-                        backgroundColor: message.role === 'user' ? '#06b6d4' : '#f3f4f6',
-                        color: message.role === 'user' ? 'white' : '#111827',
+                        backgroundColor: message.role === 'user' ? c.userBubble : c.assistantBubble,
+                        color: message.role === 'user' ? c.textInverse : c.text,
                       }}
                     >
                       {message.parts?.map((part, i) => {
@@ -240,8 +312,8 @@ export function DocsChatSidebar() {
                                       const isBlock = className?.includes('language-');
                                       return isBlock ? (
                                         <pre style={{ 
-                                          backgroundColor: '#1f2937', 
-                                          color: '#e5e7eb',
+                                          backgroundColor: c.codeBg, 
+                                          color: c.codeText,
                                           padding: '12px', 
                                           borderRadius: '6px', 
                                           overflow: 'auto',
@@ -252,7 +324,7 @@ export function DocsChatSidebar() {
                                         </pre>
                                       ) : (
                                         <code style={{ 
-                                          backgroundColor: '#e5e7eb', 
+                                          backgroundColor: c.inlineCodeBg, 
                                           padding: '2px 6px', 
                                           borderRadius: '4px',
                                           fontSize: '13px',
@@ -264,7 +336,7 @@ export function DocsChatSidebar() {
                                     li: ({ children }) => <li style={{ marginBottom: '4px' }}>{children}</li>,
                                     strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
                                     a: ({ href, children }) => (
-                                      <a href={href} style={{ color: '#0891b2', textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer">
+                                      <a href={href} style={{ color: c.accentHover, textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer">
                                         {children}
                                       </a>
                                     ),
@@ -277,27 +349,27 @@ export function DocsChatSidebar() {
                                           width: '100%', 
                                           borderCollapse: 'collapse', 
                                           fontSize: '13px',
-                                          border: '1px solid #e5e7eb',
+                                          border: `1px solid ${c.tableBorder}`,
                                           borderRadius: '6px',
                                         }}>{children}</table>
                                       </div>
                                     ),
-                                    thead: ({ children }) => <thead style={{ backgroundColor: '#f9fafb' }}>{children}</thead>,
+                                    thead: ({ children }) => <thead style={{ backgroundColor: c.tableHeaderBg }}>{children}</thead>,
                                     tbody: ({ children }) => <tbody>{children}</tbody>,
-                                    tr: ({ children }) => <tr style={{ borderBottom: '1px solid #e5e7eb' }}>{children}</tr>,
+                                    tr: ({ children }) => <tr style={{ borderBottom: `1px solid ${c.tableBorder}` }}>{children}</tr>,
                                     th: ({ children }) => (
                                       <th style={{ 
                                         padding: '8px 12px', 
                                         textAlign: 'left', 
                                         fontWeight: 600,
-                                        borderBottom: '2px solid #e5e7eb',
+                                        borderBottom: `2px solid ${c.tableBorder}`,
                                         whiteSpace: 'nowrap',
                                       }}>{children}</th>
                                     ),
                                     td: ({ children }) => (
                                       <td style={{ 
                                         padding: '8px 12px', 
-                                        borderBottom: '1px solid #e5e7eb',
+                                        borderBottom: `1px solid ${c.tableBorder}`,
                                       }}>{children}</td>
                                     ),
                                   }}
@@ -325,10 +397,10 @@ export function DocsChatSidebar() {
                       alignItems: 'center',
                       gap: '8px',
                       borderRadius: '8px',
-                      backgroundColor: '#f3f4f6',
+                      backgroundColor: c.assistantBubble,
                       padding: '8px 12px',
                       fontSize: '14px',
-                      color: '#6b7280',
+                      color: c.textMuted,
                     }}>
                       <Loader2 style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
                       Thinking...
@@ -341,7 +413,7 @@ export function DocsChatSidebar() {
           </div>
 
           {/* Input */}
-          <div style={{ borderTop: '1px solid #e5e7eb', padding: '16px' }}>
+          <div style={{ borderTop: `1px solid ${c.border}`, padding: '16px' }}>
             <form onSubmit={handleSubmit} style={{ position: 'relative' }}>
               <input
                 type="text"
@@ -352,15 +424,16 @@ export function DocsChatSidebar() {
                 style={{
                   width: '100%',
                   borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  backgroundColor: 'white',
+                  border: `1px solid ${c.border}`,
+                  backgroundColor: c.bg,
+                  color: c.text,
                   padding: '10px 48px 10px 16px',
                   fontSize: '14px',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = '#06b6d4'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = c.accent; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = c.border; }}
               />
               <button 
                 type="submit" 
@@ -372,7 +445,7 @@ export function DocsChatSidebar() {
                   transform: 'translateY(-50%)',
                   borderRadius: '6px',
                   padding: '6px',
-                  color: input.trim() ? '#06b6d4' : '#9ca3af',
+                  color: input.trim() ? c.accent : c.textMuted,
                   cursor: input.trim() ? 'pointer' : 'default',
                   border: 'none',
                   backgroundColor: 'transparent',
