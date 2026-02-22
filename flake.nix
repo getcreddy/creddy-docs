@@ -2,7 +2,8 @@
   description = "Creddy docs development environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Pin to nixpkgs with pre-built Node 22
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -15,12 +16,11 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             nodejs_22
-            nodePackages.npm
           ];
 
           shellHook = ''
+            echo "Creddy docs dev environment"
             echo "Node.js $(node --version)"
-            echo "npm $(npm --version)"
           '';
         };
       }
