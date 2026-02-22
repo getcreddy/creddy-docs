@@ -261,3 +261,18 @@ creddy audit --limit 10
 ```
 
 Shows who requested what, when, and from where—useful for security reviews and compliance.
+
+## Version History
+
+### v0.2.1 (Latest)
+- Fixed: Token scoping for repos with special characters
+- Fixed: Installation discovery when multiple orgs installed
+
+### v0.2.0
+- Added: Repository-level scoping (`github:owner/repo`)
+- Added: Read/write permission modifiers (`:read`, `:write`)
+- Added: Owner wildcard support (`github:owner/*`)
+
+### v0.1.0
+- Initial release
+- Basic installation token generation

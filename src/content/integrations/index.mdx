@@ -1,0 +1,104 @@
+# Integrations
+
+Creddy connects to external services to issue ephemeral, scoped credentials. Each integration is distributed as a plugin that can be installed and updated independently.
+
+## Available Integrations
+
+| Integration | Description | Status |
+|-------------|-------------|--------|
+| [GitHub](/docs/integrations/github) | GitHub App installation tokens | ✅ Stable |
+| [Anthropic](/docs/integrations/anthropic) | Anthropic API keys | ✅ Stable |
+| [Doppler](/docs/integrations/doppler) | Doppler service tokens | ✅ Stable |
+| AWS | AWS IAM temporary credentials | 🚧 Coming Soon |
+| OpenAI | OpenAI API keys | 🚧 Coming Soon |
+
+## Installing Integrations
+
+List available integrations:
+
+```bash
+creddy plugin list
+```
+
+Install an integration:
+
+```bash
+# Install latest version
+creddy plugin install github
+
+# Install specific version
+creddy plugin install github@0.2.0
+
+# Install multiple
+creddy plugin install github anthropic doppler
+```
+
+## Managing Integrations
+
+Check for updates:
+
+```bash
+creddy plugin outdated
+```
+
+Upgrade:
+
+```bash
+# Upgrade specific integration
+creddy plugin upgrade github
+
+# Upgrade all
+creddy plugin upgrade --all
+```
+
+View details:
+
+```bash
+creddy plugin info github
+```
+
+Remove:
+
+```bash
+creddy plugin remove github
+```
+
+## Using Integrations
+
+Once installed, add the backend configuration:
+
+```bash
+# Example: GitHub
+creddy backend add github \
+  --app-id 123456 \
+  --installation-id 78901234 \
+  --private-key /path/to/app.pem
+```
+
+Then request credentials:
+
+```bash
+creddy get github --scope "github:myorg/myrepo"
+```
+
+Each integration has its own configuration and scopes — see the individual integration pages for details.
+
+## Custom & Private Integrations
+
+Install from a URL for private or custom integrations:
+
+```bash
+creddy plugin install https://internal.corp/creddy-salesforce.tar.gz
+```
+
+See [Building Custom Integrations](/docs/integrations/building) to create your own.
+
+## Third-Party Integrations
+
+Third-party integrations are created by the community. Before installing:
+
+- ✅ Review the source code
+- ✅ Check the publisher
+- ✅ Verify checksums if provided
+
+Third-party integrations run as subprocesses and receive the configuration you provide, but cannot access other backends or Creddy's database directly.

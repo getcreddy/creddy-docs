@@ -1201,636 +1201,33 @@ creddy list
 
 If the key shows as active but doesn't work, the Admin API endpoint may have changed. Check Anthropic's documentation.
 
----
-## integrations/doppler.mdx
+## Version History
 
-# Doppler Integration
+### v0.1.3 (Latest)
+- Added: External ID tracking for revocation
+- Fixed: TTL handling for keys > 24h
 
-Creddy's Doppler integration creates scoped service tokens that give agents access to specific project secrets. Tokens are ephemeral — created on-demand and automatically revoked when they expire or when an agent is unenrolled.
+### v0.1.2
+- Added: Scope-based permission levels
+- Improved: Error messages for API failures
 
-## How It Works
+### v0.1.1
+- Fixed: Key cleanup on agent unenrollment
 
-Creddy uses Doppler's API to manage service tokens:
-
-1. Agent requests `creddy get doppler --project myapp --config prd`
-2. Creddy creates a scoped service token via Doppler API
-3. Returns the token to the agent
-4. On TTL expiry or unenroll → Creddy revokes the token
-
-```
-┌─────────────┐  creddy get doppler    ┌─────────────┐
-│   Agent     │ ─────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────── │   Server    │
-└─────────────┘  dp.st.xxx (1h TTL)    └──────┬──────┘
-       │                                      │
-       │ doppler secrets                      │ Doppler API
-       ▼                                      ▼
-┌─────────────┐                        ┌─────────────┐
-│   Doppler   │                        │   Doppler   │
-│   Secrets   │                        │     API     │
-└─────────────┘                        └─────────────┘
-```
-
-Unlike static service tokens that live forever, Creddy tokens are automatically cleaned up.
-
-## Requirements
-
-- **Doppler account** — Any plan
-- **Workplace token** — With permission to create service tokens
-- **Projects configured** — The projects agents will access
-
-## Server Setup
-
-### 1. Get a Doppler Token
-
-You need a token that can manage service tokens. Options:
-
-**Option A: Personal Token (simpler)**
-1. Go to [dashboard.doppler.com](https://dashboard.doppler.com)
-2. Click your avatar → Tokens
-3. Generate a Personal Token
-4. Save it securely
-
-**Option B: Service Account (recommended for production)**
-1. Settings → Service Accounts
-2. Create a service account for Creddy
-3. Grant it "Service Token Manager" role on relevant projects
-4. Generate a token for the service account
-
-### 2. Configure Creddy
-
-```bash
-creddy backend add doppler \
-  --token "dp.pt.xxxx"
-```
-
-Or via API:
-
-```bash
-curl -X POST http://localhost:8400/v1/admin/backends \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "doppler",
-    "name": "doppler",
-    "config": {
-      "token": "dp.pt.xxxx"
-    }
-  }'
-```
-
-## Agent Enrollment
-
-Agents request access to specific projects and configs during enrollment:
-
-```bash
-# Access to production config
-creddy enroll --server http://creddy:8400 --name deploy-bot \
-  --can doppler:myapp/prd
-
-# Access to multiple configs
-creddy enroll --server http://creddy:8400 --name dev-bot \
-  --can doppler:myapp/dev \
-  --can doppler:myapp/stg
-
-# Read-only access
-creddy enroll --server http://creddy:8400 --name readonly-bot \
-  --can doppler:myapp/prd:read
-```
-
-### Scope Format
-
-```
-doppler:project/config[:permission]
-```
-
-| Scope | Access |
-|-------|--------|
-| `doppler:myapp/prd` | Read/write to myapp production |
-| `doppler:myapp/prd:read` | Read-only to myapp production |
-| `doppler:myapp/*` | All configs in myapp project |
-| `doppler:*` | All projects (use sparingly) |
-
-## Requesting Tokens
-
-Once enrolled and approved:
-
-```bash
-# Get a token for a specific config
-creddy get doppler --project myapp --config prd
-
-# With custom TTL
-creddy get doppler --project myapp --config prd --ttl 2h
-
-# Read-only token
-creddy get doppler --project myapp --config prd --read-only
-```
-
-### Using with Doppler CLI
-
-```bash
-# Set the token
-export DOPPLER_TOKEN=$(creddy get doppler --project myapp --config prd)
-
-# Fetch secrets
-doppler secrets
-
-# Run with secrets injected
-doppler run -- ./my-app
-```
-
-### Using with Direct API
-
-```bash
-# Get token
-TOKEN=$(creddy get doppler --project myapp --config prd)
-
-# Fetch secrets via API
-curl -s "https://api.doppler.com/v3/configs/config/secrets/download?format=json" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### Using in Scripts
-
-```bash
-#!/bin/bash
-# deploy.sh - Deployment script with ephemeral secrets access
-
-# Get a short-lived token for this deployment
-export DOPPLER_TOKEN=$(creddy get doppler --project myapp --config prd --ttl 10m)
-
-# Deploy with secrets
-doppler run -- kubectl apply -f deployment.yaml
-
-# Token auto-revokes after TTL even if script crashes
-```
-
-## Token Lifecycle
-
-### TTL Expiry
-
-Tokens are automatically revoked when their TTL expires:
-
-```bash
-# Request a 30-minute token
-creddy get doppler --project myapp --config prd --ttl 30m
-
-# After 30 minutes, Creddy's reaper:
-# 1. Calls Doppler API to revoke the token
-# 2. Removes it from the active credentials database
-```
-
-The token stops working immediately — it's revoked at Doppler, not just in Creddy.
-
-### Agent Unenroll
-
-When an agent is unenrolled, all their active tokens are revoked:
-
-```bash
-# Admin unenrolls an agent
-creddy unenroll deploy-bot
-
-# Creddy:
-# 1. Finds all active Doppler tokens for deploy-bot
-# 2. Revokes each token via Doppler API
-# 3. Removes the agent
-```
-
-## Multi-Project Access
-
-Agents can have access to multiple projects:
-
-```bash
-# Enrollment with multiple projects
-creddy enroll --server http://creddy:8400 --name infra-bot \
-  --can doppler:frontend/prd \
-  --can doppler:backend/prd \
-  --can doppler:shared-secrets/prd:read
-```
-
-Request tokens for each project separately:
-
-```bash
-FRONTEND_TOKEN=$(creddy get doppler --project frontend --config prd)
-BACKEND_TOKEN=$(creddy get doppler --project backend --config prd)
-```
-
-## Example: CI/CD Pipeline
-
-```yaml
-# .github/workflows/deploy.yml
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Get Doppler token
-        run: |
-          export DOPPLER_TOKEN=$(creddy get doppler \
-            --server ${{ secrets.CREDDY_URL }} \
-            --project myapp \
-            --config prd \
-            --ttl 15m)
-          echo "DOPPLER_TOKEN=$DOPPLER_TOKEN" >> $GITHUB_ENV
-      
-      - name: Deploy
-        run: |
-          doppler run -- ./deploy.sh
-```
-
-## Example: Kubernetes Sidecar
-
-```yaml
-# Pod with Creddy sidecar for secret refresh
-apiVersion: v1
-kind: Pod
-metadata:
-  name: myapp
-spec:
-  containers:
-    - name: app
-      image: myapp:latest
-      env:
-        - name: DOPPLER_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: doppler-token
-              key: token
-    
-    - name: creddy-sidecar
-      image: creddy:latest
-      command:
-        - /bin/sh
-        - -c
-        - |
-          while true; do
-            TOKEN=$(creddy get doppler --project myapp --config prd --ttl 1h)
-            kubectl create secret generic doppler-token \
-              --from-literal=token=$TOKEN \
-              --dry-run=client -o yaml | kubectl apply -f -
-            sleep 3000  # Refresh every 50 min
-          done
-```
-
-## Audit Trail
-
-All token operations are logged:
-
-```bash
-creddy audit --limit 10
-```
-
-Shows which agent requested tokens for which project/config, when, and the token's TTL.
-
-## Security Considerations
-
-### Token Hierarchy
-
-Doppler has a token hierarchy:
-- **Personal tokens** — tied to a user, broad access
-- **Service account tokens** — scoped to roles, recommended for Creddy
-- **Service tokens** — what Creddy creates, scoped to single config
-
-Creddy creates service tokens (most limited), using your personal/SA token (more privileged).
-
-### Principle of Least Privilege
-
-- Grant agents only the configs they need
-- Use `:read` suffix when write isn't required
-- Prefer specific project/config over wildcards
-- Use short TTLs for sensitive configs
-
-### Audit Access
-
-Doppler logs all secret access. Combined with Creddy's audit:
-- **Creddy**: Who requested tokens, when
-- **Doppler**: What secrets were accessed
-
-## Comparison with Static Service Tokens
-
-| Aspect | Static Token | Creddy Ephemeral |
-|--------|-------------|------------------|
-| Lifetime | Forever | Minutes to hours |
-| Scope | Single config | Single config |
-| Revocation | Manual | Automatic on TTL/unenroll |
-| Audit | Doppler only | Creddy + Doppler |
-| Agent compromise | Permanent exposure | Limited window |
-| Token rotation | Manual | Automatic |
-
-## Troubleshooting
-
-### "Permission denied creating service token"
-
-Your Creddy token doesn't have permission to create service tokens in that project. Check:
-- Personal token: You need access to the project
-- Service account: Needs "Service Token Manager" role
-
-### "Project not found"
-
-Verify the project name matches exactly (case-sensitive):
-
-```bash
-doppler projects
-```
-
-### "Config not found"
-
-Verify the config exists:
-
-```bash
-doppler configs --project myapp
-```
-
-### Token not working
-
-If token shows as active in Creddy but doesn't work:
-
-```bash
-# Check active credentials
-creddy list
-
-# Test the token directly
-curl -s "https://api.doppler.com/v3/me" \
-  -H "Authorization: Bearer $DOPPLER_TOKEN"
-```
+### v0.1.0
+- Initial release
+- Basic API key generation and revocation
 
 ---
-## integrations/github.mdx
+## integrations/building.mdx
 
-# GitHub Integration
+# Building Custom Integrations
 
-Creddy's GitHub integration provides scoped, ephemeral installation tokens for your AI agents. Instead of sharing personal access tokens, agents request short-lived tokens with access to only the repositories they need.
-
-## How It Works
-
-Creddy uses a [GitHub App](https://docs.github.com/en/apps) to generate installation tokens. When an agent requests a GitHub credential:
-
-1. Agent authenticates with Creddy using its agent token
-2. Creddy validates the agent's scopes (which repos it can access)
-3. Creddy generates a GitHub App installation token scoped to those repos
-4. Token is returned to the agent (expires in 1 hour max)
-
-```
-┌─────────────┐     creddy get github      ┌─────────────┐
-│   Agent     │ ─────────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────────── │   Server    │
-└─────────────┘     ghs_xxxxx (1h TTL)     └──────┬──────┘
-       │                                          │
-       │ git clone / gh api                       │ GitHub App
-       ▼                                          ▼
-┌─────────────┐                            ┌─────────────┐
-│   GitHub    │ ◀────────────────────────── │  GitHub App │
-│   (repos)   │                            └─────────────┘
-└─────────────┘
-```
-
-## Key Concepts
-
-Before setup, understand these key points:
-
-- **One GitHub App** — Create a single GitHub App that Creddy uses to generate tokens
-- **Install per org/user** — Install the app into each GitHub org or user account where agents need access
-- **Max permissions on app** — The GitHub App needs the *maximum* permissions any agent might request. Creddy can only reduce permissions, never expand beyond what the app has.
-- **No webhooks needed** — Creddy only generates tokens; it doesn't receive events from GitHub
-
-## Server Setup
-
-### 1. Create a GitHub App
-
-1. Go to [github.com/settings/apps/new](https://github.com/settings/apps/new)
-
-2. **Basic info:**
-   - **Name**: `creddy-yourcompany` (must be globally unique)
-   - **Homepage URL**: Your Creddy server URL (or any URL)
-
-3. **Webhook:**
-   - ❌ **Uncheck "Active"** — Creddy doesn't need webhooks
-
-4. **Permissions** — Set the *maximum* any agent might need:
-   
-   | Permission | Level | Use Case |
-   |------------|-------|----------|
-   | Contents | Read & Write | Clone, push, read files |
-   | Metadata | Read | Required for all operations |
-   | Pull requests | Read & Write | Create/manage PRs |
-   | Issues | Read & Write | Create/manage issues |
-   | Actions | Read | Check workflow status |
-   | Commit statuses | Read & Write | Set status checks |
-
-   Start with Contents + Metadata. Add more as needed.
-
-5. **Where can this app be installed?**
-   - "Only on this account" for private use
-   - "Any account" if agents need access across orgs
-
-6. **Create the app** and note the **App ID** (shown at top of app settings)
-
-7. **Generate a private key:**
-   - Scroll to "Private keys" section
-   - Click "Generate a private key"
-   - Downloads a `.pem` file — keep this secure!
-
-### 2. Install the App
-
-1. From your app's settings page, click **"Install App"** in the sidebar
-2. Choose the org or user account to install on
-3. Select **"All repositories"** or specific repos
-4. Click **Install**
-5. Note the **Installation ID** from the URL:
-   ```
-   https://github.com/settings/installations/12345678
-                                              ^^^^^^^^
-                                              This is your installation ID
-   ```
-
-Repeat for each org where agents need access.
-
-### 3. Configure Creddy
-
-```bash
-# Add the GitHub backend
-creddy backend add github \
-  --app-id 123456 \
-  --installation-id 12345678 \
-  --private-key /path/to/app.pem
-```
-
-Or via API:
-
-```bash
-curl -X POST http://localhost:8400/v1/admin/backends \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "github",
-    "name": "github",
-    "config": {
-      "app_id": 123456,
-      "installation_id": 12345678,
-      "private_key_pem": "-----BEGIN RSA PRIVATE KEY-----\n..."
-    }
-  }'
-```
-
-## Agent Enrollment
-
-Agents request access to specific repositories during enrollment:
-
-```bash
-# Agent requests enrollment with repo access
-creddy enroll http://creddy-server:8400 --name my-agent \
-  --can github:owner/repo1 \
-  --can github:owner/repo2
-```
-
-### Scope Format
-
-| Scope | Description |
-|-------|-------------|
-| `github:owner/repo` | Access to a specific repository (read/write) |
-| `github:owner/repo:read` | Read-only access to a repository |
-| `github:owner/repo:write` | Explicit read/write access |
-| `github:owner/*` | Access to all repos under an owner |
-| `github:*` | Access to all repos the app can see |
-
-### Read-Only Scopes
-
-Suffix `:read` to restrict an agent to read-only access:
-
-```bash
-creddy enroll http://creddy-server:8400 --name ci-bot \
-  --can github:myorg/frontend:read \
-  --can github:myorg/backend:read
-```
-
-This agent can only request read-only tokens—even if it tries `--read-only=false`, Creddy will enforce the ceiling.
-
-## Requesting Tokens
-
-Once enrolled and approved, agents can request tokens:
-
-```bash
-# Get a token for all your repos
-creddy get github
-
-# Get a read-only token
-creddy get github --read-only
-
-# Narrow to specific repos (subset of what you're allowed)
-creddy get github --repo owner/repo1
-
-# Custom TTL (max 1 hour)
-creddy get github --ttl 30m
-```
-
-### Using the Token
-
-The returned token works with any GitHub API client:
-
-```bash
-# Set the token
-export GITHUB_TOKEN=$(creddy get github)
-
-# Use with git
-git clone https://x-access-token:${GITHUB_TOKEN}@github.com/owner/repo.git
-
-# Use with gh CLI
-gh api repos/owner/repo
-
-# Use with curl
-curl -H "Authorization: Bearer $GITHUB_TOKEN" \
-  https://api.github.com/repos/owner/repo
-```
-
-### Verifying Token Scopes
-
-To confirm tokens are properly scoped to specific repos:
-
-```bash
-# Get a scoped token
-export GH_TOKEN=$(creddy get github)
-
-# ✅ Should work - access your scoped repo
-gh api repos/owner/allowed-repo/issues
-
-# ❌ Should fail (404) - access a different private repo
-gh api repos/owner/other-repo/issues
-
-# ✅ Should work - create an issue in allowed repo
-gh issue create --repo owner/allowed-repo --title "Test" --body "Token scoping works!"
-
-# ❌ Should fail - create issue in different repo
-gh issue create --repo owner/other-repo --title "Test" --body "This should fail"
-```
-
-If the token is correctly scoped, you'll get a 404 "Not Found" when accessing repos outside your agent's permissions.
-
-## Adding More Repos Later
-
-Agents can request additional repository access after enrollment:
-
-```bash
-# Agent requests more access
-creddy request --can github:owner/repo3
-
-# On the server, admin sees the request
-creddy pending
-# ID          TYPE        NAME        SCOPES
-# abc-123     amendment   my-agent    ["github:owner/repo3"]
-
-# Admin approves
-creddy approve abc-123
-```
-
-Scopes are merged—the agent now has access to repo1, repo2, and repo3.
-
-## Multi-Organization Setup
-
-GitHub App installation tokens are scoped to a single installation (typically one org or user account). If your agents need access to repos across multiple orgs:
-
-1. Install the GitHub App on each org
-2. Configure multiple backends in Creddy:
-   ```bash
-   creddy backend add github-myorg --app-id 123 --installation-id 111 --private-key app.pem
-   creddy backend add github-partner --app-id 123 --installation-id 222 --private-key app.pem
-   ```
-3. Agents request from the appropriate backend:
-   ```bash
-   creddy get github-myorg
-   creddy get github-partner
-   ```
-
-## Token Permissions
-
-The token inherits the permissions configured on your GitHub App, reduced by any scope restrictions:
-
-| App Permission | Agent Scope | Token Gets |
-|----------------|-------------|------------|
-| Contents: Write | `github:owner/repo` | Contents: Write |
-| Contents: Write | `github:owner/repo:read` | Contents: Read |
-| Contents: Read | `github:owner/repo` | Contents: Read |
-
-You cannot grant more permissions than the app has—Creddy only reduces, never expands.
-
-## Audit Trail
-
-Every token issued is logged:
-
-```bash
-creddy audit --limit 10
-```
-
-Shows who requested what, when, and from where—useful for security reviews and compliance.
-
----
-## plugins/building-plugins.mdx
-
-# Building Plugins
-
-This guide walks through creating a Creddy plugin from scratch.
+This guide walks through creating a custom Creddy integration from scratch.
 
 ## Overview
 
-Creddy plugins are standalone binaries that communicate with Creddy core via gRPC. The [Plugin SDK](https://github.com/getcreddy/creddy-plugin-sdk) handles the communication layer — you just implement the credential logic.
+Creddy integrations are implemented as plugins — standalone binaries that communicate with Creddy core via gRPC. The [Plugin SDK](https://github.com/getcreddy/creddy-plugin-sdk) handles the communication layer — you just implement the credential logic.
 
 ## Prerequisites
 
@@ -2248,244 +1645,680 @@ For wider distribution, consider submitting to the community plugins list in [Th
 Questions? [Open an issue](https://github.com/getcreddy/creddy/issues) or check the [Plugin SDK](https://github.com/getcreddy/creddy-plugin-sdk) repository.
 
 ---
-## plugins/first-party.mdx
+## integrations/doppler.mdx
 
-# First-Party Plugins
+# Doppler Integration
 
-First-party plugins are built and maintained by the Creddy team. They're hosted on the official plugin registry and signed for authenticity.
+Creddy's Doppler integration creates scoped service tokens that give agents access to specific project secrets. Tokens are ephemeral — created on-demand and automatically revoked when they expire or when an agent is unenrolled.
 
-## Official Plugins
+## How It Works
 
-| Plugin | Description | Status |
-|--------|-------------|--------|
-| [github](#github) | GitHub App installation tokens | ✅ Stable |
-| [anthropic](#anthropic) | Anthropic API keys | ✅ Stable |
-| [doppler](#doppler) | Doppler service tokens | ✅ Stable |
-| [aws](#aws) | AWS IAM temporary credentials | 🚧 Coming Soon |
-| [openai](#openai) | OpenAI API keys | 🚧 Coming Soon |
+Creddy uses Doppler's API to manage service tokens:
 
-----|-------------|
-| `github:*` | All repos the App is installed on |
-| `github:owner/*` | All repos under an owner/org |
-| `github:owner/repo` | Specific repository |
-| `github:owner/repo:read` | Read-only access |
-| `github:owner/repo:write` | Write access (default) |
+1. Agent requests `creddy get doppler --project myapp --config prd`
+2. Creddy creates a scoped service token via Doppler API
+3. Returns the token to the agent
+4. On TTL expiry or unenroll → Creddy revokes the token
 
-### Releases
-
-#### v0.2.1 (Latest)
-- Fixed: Token scoping for repos with special characters
-- Fixed: Installation discovery when multiple orgs installed
-
-#### v0.2.0
-- Added: Repository-level scoping (`github:owner/repo`)
-- Added: Read/write permission modifiers (`:read`, `:write`)
-- Added: Owner wildcard support (`github:owner/*`)
-
-#### v0.1.0
-- Initial release
-- Basic installation token generation
-
----
-
-## anthropic
-
-Ephemeral Anthropic API keys via the Admin API.
-
-**Repository:** [getcreddy/creddy-anthropic](https://github.com/getcreddy/creddy-anthropic)
-
-### Installation
-
-```bash
-creddy plugin install anthropic
+```
+┌─────────────┐  creddy get doppler    ┌─────────────┐
+│   Agent     │ ─────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────── │   Server    │
+└─────────────┘  dp.st.xxx (1h TTL)    └──────┬──────┘
+       │                                      │
+       │ doppler secrets                      │ Doppler API
+       ▼                                      ▼
+┌─────────────┐                        ┌─────────────┐
+│   Doppler   │                        │   Doppler   │
+│   Secrets   │                        │     API     │
+└─────────────┘                        └─────────────┘
 ```
 
-### Configuration
+Unlike static service tokens that live forever, Creddy tokens are automatically cleaned up.
 
-```bash
-creddy backend add anthropic \
-  --admin-key "sk-admin-xxx"
-```
+## Requirements
 
-### Scopes
+- **Doppler account** — Any plan
+- **Workplace token** — With permission to create service tokens
+- **Projects configured** — The projects agents will access
 
-| Scope | Description |
-|-------|-------------|
-| `anthropic:*` | Full API access |
-| `anthropic:messages` | Messages API only |
-| `anthropic:messages:read` | Read-only (completions) |
+## Server Setup
 
-### Requirements
+### 1. Get a Doppler Token
 
-- Anthropic Scale or Enterprise plan (Admin API access required)
+You need a token that can manage service tokens. Options:
 
-### Releases
+**Option A: Personal Token (simpler)**
+1. Go to [dashboard.doppler.com](https://dashboard.doppler.com)
+2. Click your avatar → Tokens
+3. Generate a Personal Token
+4. Save it securely
 
-#### v0.1.3 (Latest)
-- Added: External ID tracking for revocation
-- Fixed: TTL handling for keys > 24h
+**Option B: Service Account (recommended for production)**
+1. Settings → Service Accounts
+2. Create a service account for Creddy
+3. Grant it "Service Token Manager" role on relevant projects
+4. Generate a token for the service account
 
-#### v0.1.2
-- Added: Scope-based permission levels
-- Improved: Error messages for API failures
-
-#### v0.1.1
-- Fixed: Key cleanup on agent unenrollment
-
-#### v0.1.0
-- Initial release
-- Basic API key generation and revocation
-
----
-
-## doppler
-
-Scoped Doppler service tokens.
-
-**Repository:** [getcreddy/creddy-doppler](https://github.com/getcreddy/creddy-doppler)
-
-### Installation
-
-```bash
-creddy plugin install doppler
-```
-
-### Configuration
+### 2. Configure Creddy
 
 ```bash
 creddy backend add doppler \
-  --token "dp.st.xxx"
+  --token "dp.pt.xxxx"
 ```
 
-### Scopes
+Or via API:
 
-| Scope | Description |
-|-------|-------------|
-| `doppler:project/config` | Access to specific project/config |
-| `doppler:project/config:read` | Read-only access |
-| `doppler:project/*` | All configs in a project |
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "doppler",
+    "name": "doppler",
+    "config": {
+      "token": "dp.pt.xxxx"
+    }
+  }'
+```
 
-### Releases
+## Agent Enrollment
 
-#### v0.1.2 (Latest)
+Agents request access to specific projects and configs during enrollment:
+
+```bash
+# Access to production config
+creddy enroll --server http://creddy:8400 --name deploy-bot \
+  --can doppler:myapp/prd
+
+# Access to multiple configs
+creddy enroll --server http://creddy:8400 --name dev-bot \
+  --can doppler:myapp/dev \
+  --can doppler:myapp/stg
+
+# Read-only access
+creddy enroll --server http://creddy:8400 --name readonly-bot \
+  --can doppler:myapp/prd:read
+```
+
+### Scope Format
+
+```
+doppler:project/config[:permission]
+```
+
+| Scope | Access |
+|-------|--------|
+| `doppler:myapp/prd` | Read/write to myapp production |
+| `doppler:myapp/prd:read` | Read-only to myapp production |
+| `doppler:myapp/*` | All configs in myapp project |
+| `doppler:*` | All projects (use sparingly) |
+
+## Requesting Tokens
+
+Once enrolled and approved:
+
+```bash
+# Get a token for a specific config
+creddy get doppler --project myapp --config prd
+
+# With custom TTL
+creddy get doppler --project myapp --config prd --ttl 2h
+
+# Read-only token
+creddy get doppler --project myapp --config prd --read-only
+```
+
+### Using with Doppler CLI
+
+```bash
+# Set the token
+export DOPPLER_TOKEN=$(creddy get doppler --project myapp --config prd)
+
+# Fetch secrets
+doppler secrets
+
+# Run with secrets injected
+doppler run -- ./my-app
+```
+
+### Using with Direct API
+
+```bash
+# Get token
+TOKEN=$(creddy get doppler --project myapp --config prd)
+
+# Fetch secrets via API
+curl -s "https://api.doppler.com/v3/configs/config/secrets/download?format=json" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Using in Scripts
+
+```bash
+#!/bin/bash
+# deploy.sh - Deployment script with ephemeral secrets access
+
+# Get a short-lived token for this deployment
+export DOPPLER_TOKEN=$(creddy get doppler --project myapp --config prd --ttl 10m)
+
+# Deploy with secrets
+doppler run -- kubectl apply -f deployment.yaml
+
+# Token auto-revokes after TTL even if script crashes
+```
+
+## Token Lifecycle
+
+### TTL Expiry
+
+Tokens are automatically revoked when their TTL expires:
+
+```bash
+# Request a 30-minute token
+creddy get doppler --project myapp --config prd --ttl 30m
+
+# After 30 minutes, Creddy's reaper:
+# 1. Calls Doppler API to revoke the token
+# 2. Removes it from the active credentials database
+```
+
+The token stops working immediately — it's revoked at Doppler, not just in Creddy.
+
+### Agent Unenroll
+
+When an agent is unenrolled, all their active tokens are revoked:
+
+```bash
+# Admin unenrolls an agent
+creddy unenroll deploy-bot
+
+# Creddy:
+# 1. Finds all active Doppler tokens for deploy-bot
+# 2. Revokes each token via Doppler API
+# 3. Removes the agent
+```
+
+## Multi-Project Access
+
+Agents can have access to multiple projects:
+
+```bash
+# Enrollment with multiple projects
+creddy enroll --server http://creddy:8400 --name infra-bot \
+  --can doppler:frontend/prd \
+  --can doppler:backend/prd \
+  --can doppler:shared-secrets/prd:read
+```
+
+Request tokens for each project separately:
+
+```bash
+FRONTEND_TOKEN=$(creddy get doppler --project frontend --config prd)
+BACKEND_TOKEN=$(creddy get doppler --project backend --config prd)
+```
+
+## Example: CI/CD Pipeline
+
+```yaml
+# .github/workflows/deploy.yml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get Doppler token
+        run: |
+          export DOPPLER_TOKEN=$(creddy get doppler \
+            --server ${{ secrets.CREDDY_URL }} \
+            --project myapp \
+            --config prd \
+            --ttl 15m)
+          echo "DOPPLER_TOKEN=$DOPPLER_TOKEN" >> $GITHUB_ENV
+      
+      - name: Deploy
+        run: |
+          doppler run -- ./deploy.sh
+```
+
+## Example: Kubernetes Sidecar
+
+```yaml
+# Pod with Creddy sidecar for secret refresh
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+      env:
+        - name: DOPPLER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: doppler-token
+              key: token
+    
+    - name: creddy-sidecar
+      image: creddy:latest
+      command:
+        - /bin/sh
+        - -c
+        - |
+          while true; do
+            TOKEN=$(creddy get doppler --project myapp --config prd --ttl 1h)
+            kubectl create secret generic doppler-token \
+              --from-literal=token=$TOKEN \
+              --dry-run=client -o yaml | kubectl apply -f -
+            sleep 3000  # Refresh every 50 min
+          done
+```
+
+## Audit Trail
+
+All token operations are logged:
+
+```bash
+creddy audit --limit 10
+```
+
+Shows which agent requested tokens for which project/config, when, and the token's TTL.
+
+## Security Considerations
+
+### Token Hierarchy
+
+Doppler has a token hierarchy:
+- **Personal tokens** — tied to a user, broad access
+- **Service account tokens** — scoped to roles, recommended for Creddy
+- **Service tokens** — what Creddy creates, scoped to single config
+
+Creddy creates service tokens (most limited), using your personal/SA token (more privileged).
+
+### Principle of Least Privilege
+
+- Grant agents only the configs they need
+- Use `:read` suffix when write isn't required
+- Prefer specific project/config over wildcards
+- Use short TTLs for sensitive configs
+
+### Audit Access
+
+Doppler logs all secret access. Combined with Creddy's audit:
+- **Creddy**: Who requested tokens, when
+- **Doppler**: What secrets were accessed
+
+## Comparison with Static Service Tokens
+
+| Aspect | Static Token | Creddy Ephemeral |
+|--------|-------------|------------------|
+| Lifetime | Forever | Minutes to hours |
+| Scope | Single config | Single config |
+| Revocation | Manual | Automatic on TTL/unenroll |
+| Audit | Doppler only | Creddy + Doppler |
+| Agent compromise | Permanent exposure | Limited window |
+| Token rotation | Manual | Automatic |
+
+## Troubleshooting
+
+### "Permission denied creating service token"
+
+Your Creddy token doesn't have permission to create service tokens in that project. Check:
+- Personal token: You need access to the project
+- Service account: Needs "Service Token Manager" role
+
+### "Project not found"
+
+Verify the project name matches exactly (case-sensitive):
+
+```bash
+doppler projects
+```
+
+### "Config not found"
+
+Verify the config exists:
+
+```bash
+doppler configs --project myapp
+```
+
+### Token not working
+
+If token shows as active in Creddy but doesn't work:
+
+```bash
+# Check active credentials
+creddy list
+
+# Test the token directly
+curl -s "https://api.doppler.com/v3/me" \
+  -H "Authorization: Bearer $DOPPLER_TOKEN"
+```
+
+## Version History
+
+### v0.1.2 (Latest)
 - Added: Config wildcard support (`doppler:project/*`)
 - Fixed: Token revocation on TTL expiry
 
-#### v0.1.1
+### v0.1.1
 - Added: Read-only scope modifier
 - Improved: Validation error messages
 
-#### v0.1.0
+### v0.1.0
 - Initial release
 - Basic service token generation
 
 ---
+## integrations/github.mdx
 
-## aws
+# GitHub Integration
 
-AWS IAM temporary credentials via STS.
+Creddy's GitHub integration provides scoped, ephemeral installation tokens for your AI agents. Instead of sharing personal access tokens, agents request short-lived tokens with access to only the repositories they need.
 
-**Status:** 🚧 Coming Soon
+## How It Works
 
-### Planned Features
+Creddy uses a [GitHub App](https://docs.github.com/en/apps) to generate installation tokens. When an agent requests a GitHub credential:
 
-- AssumeRole for temporary credentials
-- Scoped IAM policies
-- Session tags for audit trails
-- Support for cross-account access
+1. Agent authenticates with Creddy using its agent token
+2. Creddy validates the agent's scopes (which repos it can access)
+3. Creddy generates a GitHub App installation token scoped to those repos
+4. Token is returned to the agent (expires in 1 hour max)
 
----
+```
+┌─────────────┐     creddy get github      ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘     ghs_xxxxx (1h TTL)     └──────┬──────┘
+       │                                          │
+       │ git clone / gh api                       │ GitHub App
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│   GitHub    │ ◀────────────────────────── │  GitHub App │
+│   (repos)   │                            └─────────────┘
+└─────────────┘
+```
 
-## openai
+## Key Concepts
 
-Ephemeral OpenAI API keys.
+Before setup, understand these key points:
 
-**Status:** 🚧 Coming Soon
+- **One GitHub App** — Create a single GitHub App that Creddy uses to generate tokens
+- **Install per org/user** — Install the app into each GitHub org or user account where agents need access
+- **Max permissions on app** — The GitHub App needs the *maximum* permissions any agent might request. Creddy can only reduce permissions, never expand beyond what the app has.
+- **No webhooks needed** — Creddy only generates tokens; it doesn't receive events from GitHub
 
-### Planned Features
+## Server Setup
 
-- Project-scoped API keys
-- Usage limits per key
-- Model restrictions
+### 1. Create a GitHub App
 
----
+1. Go to [github.com/settings/apps/new](https://github.com/settings/apps/new)
 
-## Security
+2. **Basic info:**
+   - **Name**: `creddy-yourcompany` (must be globally unique)
+   - **Homepage URL**: Your Creddy server URL (or any URL)
 
-First-party plugins are:
+3. **Webhook:**
+   - ❌ **Uncheck "Active"** — Creddy doesn't need webhooks
 
-- **Signed** — Binary checksums verified against official signatures
-- **Audited** — Code reviewed by the Creddy team
-- **Versioned** — Pinnable to specific versions for stability
-- **Open source** — Full source code available for inspection
+4. **Permissions** — Set the *maximum* any agent might need:
+   
+   | Permission | Level | Use Case |
+   |------------|-------|----------|
+   | Contents | Read & Write | Clone, push, read files |
+   | Metadata | Read | Required for all operations |
+   | Pull requests | Read & Write | Create/manage PRs |
+   | Issues | Read & Write | Create/manage issues |
+   | Actions | Read | Check workflow status |
+   | Commit statuses | Read & Write | Set status checks |
 
-Verify a plugin signature:
+   Start with Contents + Metadata. Add more as needed.
+
+5. **Where can this app be installed?**
+   - "Only on this account" for private use
+   - "Any account" if agents need access across orgs
+
+6. **Create the app** and note the **App ID** (shown at top of app settings)
+
+7. **Generate a private key:**
+   - Scroll to "Private keys" section
+   - Click "Generate a private key"
+   - Downloads a `.pem` file — keep this secure!
+
+### 2. Install the App
+
+1. From your app's settings page, click **"Install App"** in the sidebar
+2. Choose the org or user account to install on
+3. Select **"All repositories"** or specific repos
+4. Click **Install**
+5. Note the **Installation ID** from the URL:
+   ```
+   https://github.com/settings/installations/12345678
+                                              ^^^^^^^^
+                                              This is your installation ID
+   ```
+
+Repeat for each org where agents need access.
+
+### 3. Configure Creddy
 
 ```bash
-creddy plugin verify github
+# Add the GitHub backend
+creddy backend add github \
+  --app-id 123456 \
+  --installation-id 12345678 \
+  --private-key /path/to/app.pem
 ```
 
-Output:
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "github",
+    "name": "github",
+    "config": {
+      "app_id": 123456,
+      "installation_id": 12345678,
+      "private_key_pem": "-----BEGIN RSA PRIVATE KEY-----\n..."
+    }
+  }'
 ```
-Plugin:     github
-Version:    0.2.1
-Checksum:   sha256:a1b2c3d4...
-Signature:  ✓ Valid (signed by getcreddy)
+
+## Agent Enrollment
+
+Agents request access to specific repositories during enrollment:
+
+```bash
+# Agent requests enrollment with repo access
+creddy enroll http://creddy-server:8400 --name my-agent \
+  --can github:owner/repo1 \
+  --can github:owner/repo2
 ```
 
+### Scope Format
+
+| Scope | Description |
+|-------|-------------|
+| `github:owner/repo` | Access to a specific repository (read/write) |
+| `github:owner/repo:read` | Read-only access to a repository |
+| `github:owner/repo:write` | Explicit read/write access |
+| `github:owner/*` | Access to all repos under an owner |
+| `github:*` | Access to all repos the app can see |
+
+### Read-Only Scopes
+
+Suffix `:read` to restrict an agent to read-only access:
+
+```bash
+creddy enroll http://creddy-server:8400 --name ci-bot \
+  --can github:myorg/frontend:read \
+  --can github:myorg/backend:read
+```
+
+This agent can only request read-only tokens—even if it tries `--read-only=false`, Creddy will enforce the ceiling.
+
+## Requesting Tokens
+
+Once enrolled and approved, agents can request tokens:
+
+```bash
+# Get a token for all your repos
+creddy get github
+
+# Get a read-only token
+creddy get github --read-only
+
+# Narrow to specific repos (subset of what you're allowed)
+creddy get github --repo owner/repo1
+
+# Custom TTL (max 1 hour)
+creddy get github --ttl 30m
+```
+
+### Using the Token
+
+The returned token works with any GitHub API client:
+
+```bash
+# Set the token
+export GITHUB_TOKEN=$(creddy get github)
+
+# Use with git
+git clone https://x-access-token:${GITHUB_TOKEN}@github.com/owner/repo.git
+
+# Use with gh CLI
+gh api repos/owner/repo
+
+# Use with curl
+curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://api.github.com/repos/owner/repo
+```
+
+### Verifying Token Scopes
+
+To confirm tokens are properly scoped to specific repos:
+
+```bash
+# Get a scoped token
+export GH_TOKEN=$(creddy get github)
+
+# ✅ Should work - access your scoped repo
+gh api repos/owner/allowed-repo/issues
+
+# ❌ Should fail (404) - access a different private repo
+gh api repos/owner/other-repo/issues
+
+# ✅ Should work - create an issue in allowed repo
+gh issue create --repo owner/allowed-repo --title "Test" --body "Token scoping works!"
+
+# ❌ Should fail - create issue in different repo
+gh issue create --repo owner/other-repo --title "Test" --body "This should fail"
+```
+
+If the token is correctly scoped, you'll get a 404 "Not Found" when accessing repos outside your agent's permissions.
+
+## Adding More Repos Later
+
+Agents can request additional repository access after enrollment:
+
+```bash
+# Agent requests more access
+creddy request --can github:owner/repo3
+
+# On the server, admin sees the request
+creddy pending
+# ID          TYPE        NAME        SCOPES
+# abc-123     amendment   my-agent    ["github:owner/repo3"]
+
+# Admin approves
+creddy approve abc-123
+```
+
+Scopes are merged—the agent now has access to repo1, repo2, and repo3.
+
+## Multi-Organization Setup
+
+GitHub App installation tokens are scoped to a single installation (typically one org or user account). If your agents need access to repos across multiple orgs:
+
+1. Install the GitHub App on each org
+2. Configure multiple backends in Creddy:
+   ```bash
+   creddy backend add github-myorg --app-id 123 --installation-id 111 --private-key app.pem
+   creddy backend add github-partner --app-id 123 --installation-id 222 --private-key app.pem
+   ```
+3. Agents request from the appropriate backend:
+   ```bash
+   creddy get github-myorg
+   creddy get github-partner
+   ```
+
+## Token Permissions
+
+The token inherits the permissions configured on your GitHub App, reduced by any scope restrictions:
+
+| App Permission | Agent Scope | Token Gets |
+|----------------|-------------|------------|
+| Contents: Write | `github:owner/repo` | Contents: Write |
+| Contents: Write | `github:owner/repo:read` | Contents: Read |
+| Contents: Read | `github:owner/repo` | Contents: Read |
+
+You cannot grant more permissions than the app has—Creddy only reduces, never expands.
+
+## Audit Trail
+
+Every token issued is logged:
+
+```bash
+creddy audit --limit 10
+```
+
+Shows who requested what, when, and from where—useful for security reviews and compliance.
+
+## Version History
+
+### v0.2.1 (Latest)
+- Fixed: Token scoping for repos with special characters
+- Fixed: Installation discovery when multiple orgs installed
+
+### v0.2.0
+- Added: Repository-level scoping (`github:owner/repo`)
+- Added: Read/write permission modifiers (`:read`, `:write`)
+- Added: Owner wildcard support (`github:owner/*`)
+
+### v0.1.0
+- Initial release
+- Basic installation token generation
+
 ---
+## integrations/index.mdx
 
-## Support
+# Integrations
 
-For issues with first-party plugins:
+Creddy connects to external services to issue ephemeral, scoped credentials. Each integration is distributed as a plugin that can be installed and updated independently.
 
-- [GitHub Issues](https://github.com/getcreddy/creddy/issues) — Bug reports and feature requests
-- Plugin-specific repos — For plugin-specific issues
+## Available Integrations
 
----
+| Integration | Description | Status |
+|-------------|-------------|--------|
+| [GitHub](/docs/integrations/github) | GitHub App installation tokens | ✅ Stable |
+| [Anthropic](/docs/integrations/anthropic) | Anthropic API keys | ✅ Stable |
+| [Doppler](/docs/integrations/doppler) | Doppler service tokens | ✅ Stable |
+| AWS | AWS IAM temporary credentials | 🚧 Coming Soon |
+| OpenAI | OpenAI API keys | 🚧 Coming Soon |
 
-Next: [Third-Party Plugins](/docs/plugins/third-party) | [Building Plugins](/docs/plugins/building-plugins)
+## Installing Integrations
 
----
-## plugins/index.mdx
-
-# Plugins
-
-Creddy uses a plugin architecture for credential backends. Each integration (GitHub, Anthropic, Doppler, etc.) is a separate binary that communicates with Creddy core via gRPC.
-
-## Why Plugins?
-
-- **Independent releases** — Plugins can be updated without updating Creddy core
-- **Smaller core** — Only install the integrations you need
-- **Community extensibility** — Anyone can build and share plugins
-- **Private integrations** — Build internal plugins for proprietary systems
-
-## Discovering Plugins
-
-List available plugins from the official registry:
+List available integrations:
 
 ```bash
 creddy plugin list
 ```
 
-Output:
-```
-NAME        VERSION   DESCRIPTION                                      INSTALLED
-github      0.2.1     GitHub App installation tokens                   ✓ 0.2.1
-anthropic   0.1.3     Anthropic API keys (Admin API)                   ✓ 0.1.3
-doppler     0.1.2     Doppler service tokens                           -
-aws         0.1.0     AWS IAM temporary credentials                    -
-```
-
-Search for plugins:
-
-```bash
-creddy plugin search docker
-```
-
-## Installing Plugins
-
-Install from the official registry:
+Install an integration:
 
 ```bash
 # Install latest version
@@ -2494,44 +2327,11 @@ creddy plugin install github
 # Install specific version
 creddy plugin install github@0.2.0
 
-# Install multiple plugins
+# Install multiple
 creddy plugin install github anthropic doppler
 ```
 
-Install from a custom URL (for private/third-party plugins):
-
-```bash
-creddy plugin install https://internal.corp/plugins/salesforce
-creddy plugin install https://github.com/someone/creddy-custom/releases/download/v0.1.0/creddy-custom-linux-amd64.tar.gz
-```
-
-## Using Plugins
-
-Once installed, plugins are automatically available. Add a backend:
-
-```bash
-# GitHub plugin
-creddy backend add github \
-  --app-id 123456 \
-  --installation-id 78901234 \
-  --private-key /path/to/app.pem
-
-# Doppler plugin  
-creddy backend add doppler \
-  --token "dp.st.xxx"
-```
-
-Request credentials:
-
-```bash
-# Uses the github plugin
-creddy get github --scope "github:myorg/myrepo"
-
-# Uses the doppler plugin
-creddy get doppler --scope "doppler:myproject/production"
-```
-
-## Upgrading Plugins
+## Managing Integrations
 
 Check for updates:
 
@@ -2539,245 +2339,67 @@ Check for updates:
 creddy plugin outdated
 ```
 
-Output:
-```
-NAME        INSTALLED   LATEST    
-github      0.2.0       0.2.1     
-doppler     0.1.1       0.1.2     
-```
-
-Upgrade plugins:
+Upgrade:
 
 ```bash
-# Upgrade specific plugin
+# Upgrade specific integration
 creddy plugin upgrade github
 
-# Upgrade all plugins
+# Upgrade all
 creddy plugin upgrade --all
 ```
 
-## Managing Plugins
-
-View installed plugins:
-
-```bash
-creddy plugin list --installed
-```
-
-Get plugin details:
+View details:
 
 ```bash
 creddy plugin info github
 ```
 
-Output:
-```
-Name:              github
-Version:           0.2.1
-Description:       GitHub App installation tokens with repository scoping
-Min Creddy Version: 0.4.0
-Installed:         ~/.creddy/plugins/creddy-github
-Source:            https://plugins.creddy.dev/github/0.2.1
-
-Scopes:
-  github:*              All repositories the App is installed on
-  github:/*      All repositories under an owner/org
-  github:/ Specific repository (add :read or :write)
-```
-
-Remove a plugin:
+Remove:
 
 ```bash
 creddy plugin remove github
 ```
 
-## Plugin Locations
+## Using Integrations
 
-Plugins are stored in `~/.creddy/plugins/` by default:
-
-```
-~/.creddy/
-  plugins/
-    creddy-github
-    creddy-anthropic
-    creddy-doppler
-```
-
-Override with environment variable:
+Once installed, add the backend configuration:
 
 ```bash
-export CREDDY_PLUGIN_DIR=/opt/creddy/plugins
+# Example: GitHub
+creddy backend add github \
+  --app-id 123456 \
+  --installation-id 78901234 \
+  --private-key /path/to/app.pem
 ```
 
-## Troubleshooting
-
-### Plugin not found
+Then request credentials:
 
 ```bash
-# Check if plugin is installed
-creddy plugin list --installed
-
-# Reinstall
-creddy plugin remove github
-creddy plugin install github
+creddy get github --scope "github:myorg/myrepo"
 ```
 
-### Plugin version mismatch
+Each integration has its own configuration and scopes — see the individual integration pages for details.
 
-```
-Error: plugin github requires Creddy >= 0.5.0 (you have 0.4.2)
-```
+## Custom & Private Integrations
 
-Upgrade Creddy or install an older plugin version:
+Install from a URL for private or custom integrations:
 
 ```bash
-creddy plugin install github@0.1.5
+creddy plugin install https://internal.corp/creddy-salesforce.tar.gz
 ```
 
-### Debug plugin communication
+See [Building Custom Integrations](/docs/integrations/building) to create your own.
 
-```bash
-CREDDY_PLUGIN_DEBUG=1 creddy get github --scope "github:myorg/repo"
-```
+## Third-Party Integrations
 
----
+Third-party integrations are created by the community. Before installing:
 
-Next: [First-Party Plugins](/docs/plugins/first-party) | [Third-Party Plugins](/docs/plugins/third-party) | [Building Plugins](/docs/plugins/building-plugins)
+- ✅ Review the source code
+- ✅ Check the publisher
+- ✅ Verify checksums if provided
 
----
-## plugins/third-party.mdx
-
-# Third-Party Plugins
-
-Third-party plugins are created by the community or organizations for their own needs. They're not maintained by the Creddy team.
-
-## Using Third-Party Plugins
-
-Install from a URL:
-
-```bash
-# From a GitHub release
-creddy plugin install https://github.com/someone/creddy-salesforce/releases/download/v0.1.0/creddy-salesforce-linux-amd64.tar.gz
-
-# From a private registry
-creddy plugin install https://plugins.internal.corp/creddy-internal-auth
-```
-
-## Security Considerations
-
-⚠️ **Third-party plugins run as subprocesses with access to your Creddy configuration.**
-
-Before installing a third-party plugin:
-
-1. **Review the source code** — Only install plugins from sources you trust
-2. **Check the publisher** — Is this a known developer/organization?
-3. **Verify checksums** — If provided, verify the download matches
-4. **Start with read-only** — Test with minimal scopes first
-5. **Monitor behavior** — Watch for unexpected network calls or file access
-
-### What plugins can access
-
-Plugins receive:
-- Configuration you provide (API keys, tokens, etc.)
-- Agent information (ID, name, scopes)
-- Credential requests (scope, TTL)
-
-Plugins **cannot** access:
-- Other backends' configurations
-- Creddy's database directly
-- Other plugins
-
-### Network isolation
-
-For high-security environments, consider:
-
-```bash
-# Run Creddy with network restrictions
-# (implementation depends on your environment)
-firejail --net=none creddy server  # Linux
-```
-
-## Building Private Plugins
-
-Organizations often need plugins for internal systems. See [Building Plugins](/docs/plugins/building-plugins) for a complete guide.
-
-Common use cases:
-- Internal SSO/authentication systems
-- Proprietary APIs
-- Custom secret stores
-- Legacy systems
-
-## Community Plugins
-
-> **Note:** This list is community-maintained. Inclusion doesn't imply endorsement.
-
-| Plugin | Description | Author |
-|--------|-------------|--------|
-| *None yet* | Be the first! | - |
-
-### Submitting a Plugin
-
-To add your plugin to this list:
-
-1. Ensure it follows the [plugin guidelines](#plugin-guidelines)
-2. Open a PR to [getcreddy/creddy-docs](https://github.com/getcreddy/creddy-docs)
-3. Add your plugin to the table above
-
-### Plugin Guidelines
-
-Community plugins should:
-
-- ✅ Be open source (or clearly documented)
-- ✅ Include a README with setup instructions
-- ✅ Specify minimum Creddy version
-- ✅ Handle errors gracefully
-- ✅ Not collect telemetry without disclosure
-
-## Private Plugin Registries
-
-Organizations can host their own plugin registries:
-
-```bash
-# Configure a private registry
-creddy config set plugin.registry https://plugins.internal.corp
-
-# Or use environment variable
-export CREDDY_PLUGIN_REGISTRY=https://plugins.internal.corp
-```
-
-Registry format (JSON):
-```json
-{
-  "plugins": {
-    "internal-auth": {
-      "description": "Internal authentication system",
-      "latest": "0.3.1",
-      "versions": {
-        "0.3.1": {
-          "url": "https://plugins.internal.corp/internal-auth/0.3.1/{os}-{arch}.tar.gz",
-          "sha256": {
-            "linux-amd64": "abc123...",
-            "darwin-arm64": "def456..."
-          },
-          "min_creddy_version": "0.4.0"
-        }
-      }
-    }
-  }
-}
-```
-
-## Reporting Issues
-
-For security issues with third-party plugins, contact the plugin author directly.
-
-For plugins that violate guidelines or are malicious:
-- [Open an issue](https://github.com/getcreddy/creddy/issues) to have them removed from community lists
-- We cannot take action against plugins hosted elsewhere
-
----
-
-Next: [Building Plugins](/docs/plugins/building-plugins)
+Third-party integrations run as subprocesses and receive the configuration you provide, but cannot access other backends or Creddy's database directly.
 
 ---
 ## pricing.mdx
