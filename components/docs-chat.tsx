@@ -4,10 +4,14 @@ import { useState, useRef, useEffect, FormEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { X, Send, Loader2, Sparkles, Maximize2, Minimize2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 const transport = new DefaultChatTransport({
   api: '/api/chat',
 });
+
+const PANEL_WIDTH = 420;
+const PANEL_WIDTH_EXPANDED = 580;
 
 // Combined component with button + panel - ALL INLINE STYLES (no Tailwind on docs pages)
 export function DocsChatSidebar() {
@@ -21,10 +25,24 @@ export function DocsChatSidebar() {
   });
 
   const isLoading = status === 'streaming' || status === 'submitted';
+  const panelWidth = isExpanded ? PANEL_WIDTH_EXPANDED : PANEL_WIDTH;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Push content when panel opens
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.marginRight = `${panelWidth}px`;
+      document.body.style.transition = 'margin-right 0.2s ease';
+    } else {
+      document.body.style.marginRight = '0px';
+    }
+    return () => {
+      document.body.style.marginRight = '0px';
+    };
+  }, [isOpen, panelWidth]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -33,6 +51,11 @@ export function DocsChatSidebar() {
     const message = input;
     setInput('');
     await sendMessage({ text: message });
+  };
+
+  const handleQuickQuestion = async (question: string) => {
+    if (isLoading) return;
+    await sendMessage({ text: question });
   };
 
   return (
@@ -44,7 +67,7 @@ export function DocsChatSidebar() {
         style={{
           position: 'fixed',
           top: '14px',
-          right: '360px',
+          right: isOpen ? `${panelWidth + 20}px` : '360px',
           zIndex: 99999,
           pointerEvents: 'auto',
           isolation: 'isolate',
@@ -55,24 +78,28 @@ export function DocsChatSidebar() {
           whiteSpace: 'nowrap',
           borderRadius: '8px',
           border: '1px solid #e5e7eb',
-          backgroundColor: 'white',
+          backgroundColor: isOpen ? '#ecfeff' : 'white',
           padding: '6px 16px',
           fontSize: '14px',
           fontWeight: 500,
-          color: '#374151',
+          color: isOpen ? '#0891b2' : '#374151',
           boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
           cursor: 'pointer',
-          transition: 'all 0.15s ease',
+          transition: 'all 0.2s ease',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#ecfeff';
-          e.currentTarget.style.borderColor = '#22d3ee';
-          e.currentTarget.style.color = '#0891b2';
+          if (!isOpen) {
+            e.currentTarget.style.backgroundColor = '#ecfeff';
+            e.currentTarget.style.borderColor = '#22d3ee';
+            e.currentTarget.style.color = '#0891b2';
+          }
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'white';
-          e.currentTarget.style.borderColor = '#e5e7eb';
-          e.currentTarget.style.color = '#374151';
+          if (!isOpen) {
+            e.currentTarget.style.backgroundColor = 'white';
+            e.currentTarget.style.borderColor = '#e5e7eb';
+            e.currentTarget.style.color = '#374151';
+          }
         }}
         onMouseDown={(e) => {
           e.currentTarget.style.transform = 'scale(0.98)';
@@ -98,9 +125,9 @@ export function DocsChatSidebar() {
             flexDirection: 'column',
             borderLeft: '1px solid #e5e7eb',
             backgroundColor: 'white',
-            boxShadow: '-4px 0 20px rgba(0,0,0,0.1)',
-            width: isExpanded ? '500px' : '340px',
+            width: `${panelWidth}px`,
             paddingTop: '64px',
+            transition: 'width 0.2s ease',
           }}
         >
           {/* Header */}
@@ -179,18 +206,20 @@ export function DocsChatSidebar() {
                   {['How do I get started?', 'What are scopes?', 'How does enrollment work?'].map((q) => (
                     <button
                       key={q}
-                      onClick={() => setInput(q)}
+                      onClick={() => handleQuickQuestion(q)}
+                      disabled={isLoading}
                       style={{
                         borderRadius: '9999px',
                         border: '1px solid #e5e7eb',
                         padding: '6px 12px',
                         fontSize: '12px',
                         color: '#4b5563',
-                        cursor: 'pointer',
+                        cursor: isLoading ? 'default' : 'pointer',
                         backgroundColor: 'white',
                         transition: 'background-color 0.15s',
+                        opacity: isLoading ? 0.5 : 1,
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f9fafb'; }}
+                      onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = '#f9fafb'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
                     >
                       {q}
@@ -220,6 +249,54 @@ export function DocsChatSidebar() {
                     >
                       {message.parts?.map((part, i) => {
                         if (part.type === 'text') {
+                          if (message.role === 'assistant') {
+                            return (
+                              <div key={i} style={{ lineHeight: 1.6 }}>
+                                <ReactMarkdown
+                                  components={{
+                                    p: ({ children }) => <p style={{ margin: '0 0 8px 0' }}>{children}</p>,
+                                    code: ({ children, className }) => {
+                                      const isBlock = className?.includes('language-');
+                                      return isBlock ? (
+                                        <pre style={{ 
+                                          backgroundColor: '#1f2937', 
+                                          color: '#e5e7eb',
+                                          padding: '12px', 
+                                          borderRadius: '6px', 
+                                          overflow: 'auto',
+                                          fontSize: '13px',
+                                          margin: '8px 0',
+                                        }}>
+                                          <code>{children}</code>
+                                        </pre>
+                                      ) : (
+                                        <code style={{ 
+                                          backgroundColor: '#e5e7eb', 
+                                          padding: '2px 6px', 
+                                          borderRadius: '4px',
+                                          fontSize: '13px',
+                                        }}>{children}</code>
+                                      );
+                                    },
+                                    ul: ({ children }) => <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>{children}</ul>,
+                                    ol: ({ children }) => <ol style={{ margin: '8px 0', paddingLeft: '20px' }}>{children}</ol>,
+                                    li: ({ children }) => <li style={{ marginBottom: '4px' }}>{children}</li>,
+                                    strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+                                    a: ({ href, children }) => (
+                                      <a href={href} style={{ color: '#0891b2', textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer">
+                                        {children}
+                                      </a>
+                                    ),
+                                    h1: ({ children }) => <h1 style={{ fontSize: '18px', fontWeight: 600, margin: '12px 0 8px' }}>{children}</h1>,
+                                    h2: ({ children }) => <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '12px 0 8px' }}>{children}</h2>,
+                                    h3: ({ children }) => <h3 style={{ fontSize: '15px', fontWeight: 600, margin: '10px 0 6px' }}>{children}</h3>,
+                                  }}
+                                >
+                                  {part.text}
+                                </ReactMarkdown>
+                              </div>
+                            );
+                          }
                           return part.text.split('\n').map((line, j) => (
                             <p key={`${i}-${j}`} style={{ margin: '0 0 4px 0' }}>
                               {line || '\u00A0'}
