@@ -1,0 +1,208 @@
+# Anthropic Integration
+
+Creddy's Anthropic integration creates truly ephemeral API keys. Unlike static keys, these are created on-demand and automatically deleted when they expire or when an agent is unenrolled.
+
+## How It Works
+
+Creddy uses Anthropic's Admin API to manage API keys programmatically:
+
+1. Agent requests `creddy get anthropic`
+2. Creddy creates a new API key via Admin API
+3. Returns real `sk-ant-...` key to the agent
+4. On TTL expiry or unenroll → Creddy deletes the key from Anthropic
+
+```
+┌─────────────┐    creddy get anthropic    ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘    sk-ant-xxx (1h TTL)     └──────┬──────┘
+       │                                          │
+       │ claude / API calls                       │ Admin API
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│  Anthropic  │                            │  Anthropic  │
+│     API     │                            │  Admin API  │
+└─────────────┘                            └─────────────┘
+```
+
+The key difference from GitHub: **the agent gets a real API key** that works with any client (Claude Code, SDKs, curl), but Creddy automatically cleans it up.
+
+## Requirements
+
+- **Anthropic Admin API access** — Requires Scale or Enterprise plan
+- **Admin API key** — Generated from your Anthropic console
+
+## Server Setup
+
+### 1. Get Admin API Key
+
+1. Log into [console.anthropic.com](https://console.anthropic.com)
+2. Go to Settings → Admin API
+3. Generate an Admin API key
+4. Save it securely — it won't be shown again
+
+### 2. Configure Creddy
+
+```bash
+creddy backend add anthropic \
+  --admin-key "sk-admin-..."
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "anthropic",
+    "name": "anthropic",
+    "config": {
+      "admin_key": "sk-admin-..."
+    }
+  }'
+```
+
+## Agent Enrollment
+
+Agents request Anthropic access during enrollment:
+
+```bash
+creddy enroll --server http://creddy:8400 --name my-agent \
+  --can anthropic
+```
+
+Currently, Anthropic scopes are simple — an agent either has access or doesn't. Future versions may support model-level scoping.
+
+## Requesting Keys
+
+Once enrolled and approved:
+
+```bash
+# Get an API key (default 10 min TTL)
+creddy get anthropic
+
+# Get a key with custom TTL
+creddy get anthropic --ttl 1h
+
+# Use it immediately
+export ANTHROPIC_API_KEY=$(creddy get anthropic)
+claude "Hello, world"
+```
+
+### Using with Claude Code
+
+```bash
+# Set the key
+export ANTHROPIC_API_KEY=$(creddy get anthropic --ttl 1h)
+
+# Claude Code uses it automatically
+claude code "implement a fibonacci function"
+```
+
+### Using with Python SDK
+
+```python
+import os
+import anthropic
+
+# Key from environment (set via creddy get)
+client = anthropic.Anthropic()
+
+message = client.messages.create(
+    model="claude-3-sonnet-20240229",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+## Key Lifecycle
+
+### TTL Expiry
+
+Keys are automatically deleted when their TTL expires:
+
+```bash
+# Request a 30-minute key
+creddy get anthropic --ttl 30m
+
+# After 30 minutes, Creddy's reaper:
+# 1. Calls Anthropic Admin API to delete the key
+# 2. Removes it from the active credentials database
+```
+
+The agent cannot use the key after expiry — it's deleted from Anthropic, not just Creddy.
+
+### Agent Unenroll
+
+When an agent is unenrolled, all their active keys are revoked:
+
+```bash
+# Admin unenrolls an agent
+creddy unenroll my-agent
+
+# Creddy:
+# 1. Finds all active credentials for my-agent
+# 2. Deletes each Anthropic key via Admin API
+# 3. Removes the agent
+```
+
+This provides immediate revocation — no waiting for TTL expiry.
+
+## Audit Trail
+
+All key creation is logged:
+
+```bash
+creddy audit --limit 10
+```
+
+Shows who requested keys, when, and which agent.
+
+## Security Considerations
+
+### Admin Key Security
+
+The Admin API key stored in Creddy can create and delete any API key in your organization. Protect it:
+
+- Run Creddy on a trusted server (Tailscale, VPN, localhost)
+- Use `creddy install` with security hardening
+- Rotate the admin key periodically
+
+### Key Visibility
+
+Unlike GitHub tokens (which are scoped), Anthropic API keys have full access to your API quota. Consider:
+
+- Short TTLs for untrusted agents
+- Monitoring API usage per key name (`creddy-<timestamp>`)
+- Using separate Anthropic organizations for different trust levels
+
+## Comparison with Static Keys
+
+| Aspect | Static Key | Creddy Ephemeral |
+|--------|-----------|------------------|
+| Lifetime | Forever | Minutes to hours |
+| Revocation | Manual | Automatic on TTL/unenroll |
+| Audit | None | Full trail |
+| Agent compromise | Permanent exposure | Limited window |
+| Key rotation | Manual | Automatic |
+
+## Troubleshooting
+
+### "Admin API access required"
+
+You need a Scale or Enterprise plan for Admin API access. Contact Anthropic sales.
+
+### "Failed to create API key"
+
+Check that your admin key is valid and has permission to create API keys.
+
+### Key not working
+
+Verify the key was created successfully:
+
+```bash
+# Check active credentials
+creddy list
+```
+
+If the key shows as active but doesn't work, the Admin API endpoint may have changed. Check Anthropic's documentation.
