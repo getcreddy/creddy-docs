@@ -41,7 +41,7 @@ export function DocsChatSidebar() {
       <button
         type="button"
         onClick={() => {
-          console.log('Ask AI clicked');
+          console.log('Ask AI clicked, isOpen:', !isOpen);
           setIsOpen(!isOpen);
         }}
         style={{
@@ -51,10 +51,40 @@ export function DocsChatSidebar() {
           zIndex: 99999,
           pointerEvents: 'auto',
           isolation: 'isolate',
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: '8px',
+          whiteSpace: 'nowrap',
+          borderRadius: '8px',
+          border: '1px solid #e5e7eb',
+          backgroundColor: 'white',
+          padding: '6px 16px',
+          fontSize: '14px',
+          fontWeight: 500,
+          color: '#374151',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
         }}
-        className="cursor-pointer flex flex-row items-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-4 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-cyan-400 hover:bg-cyan-50 hover:text-cyan-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-cyan-500 dark:hover:bg-gray-700 dark:hover:text-cyan-400"
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#ecfeff';
+          e.currentTarget.style.borderColor = '#22d3ee';
+          e.currentTarget.style.color = '#0891b2';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'white';
+          e.currentTarget.style.borderColor = '#e5e7eb';
+          e.currentTarget.style.color = '#374151';
+        }}
+        onMouseDown={(e) => {
+          e.currentTarget.style.transform = 'scale(0.98)';
+        }}
+        onMouseUp={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+        }}
       >
-        <Sparkles className="size-4 text-cyan-500" />
+        <Sparkles style={{ width: '16px', height: '16px', color: '#06b6d4' }} />
         <span>Ask AI</span>
       </button>
 
