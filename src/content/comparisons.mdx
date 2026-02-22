@@ -1,0 +1,102 @@
+# Comparisons
+
+Creddy often gets compared to other secrets management tools. Here's how it differs.
+
+## The Short Version
+
+Creddy is **not** a general-purpose secrets manager. It's a narrow, focused tool for one thing: **giving AI agents isolated, ephemeral credentials**.
+
+If you're managing production infrastructure secrets, customer data encryption keys, or enterprise compliance requirements — use Vault, AWS Secrets Manager, or similar tools. They're excellent at what they do.
+
+Creddy is for a different problem: you have AI agents that need API access, and you don't want to hand them your personal tokens.
+
+## Creddy vs HashiCorp Vault
+
+[Vault](https://www.vaultproject.io/) is an enterprise-grade secrets management platform.
+
+| | Vault | Creddy |
+|---|---|---|
+| **Primary use case** | Production infrastructure secrets | AI agent credentials |
+| **Complexity** | High (requires ops expertise) | Low (single binary) |
+| **Target users** | Platform/DevOps teams | Individual developers, AI agents |
+| **Secrets storage** | Yes, stores all secrets | No, connects to existing APIs |
+| **Dynamic secrets** | Many backends (databases, cloud, etc.) | Focused backends (GitHub, Anthropic, etc.) |
+| **Compliance** | SOC2, HIPAA, etc. | Not designed for compliance |
+| **Deployment** | Cluster, HA, unsealing | Single binary, SQLite |
+
+**When to use Vault:** Production secrets, database credentials, PKI, enterprise requirements.
+
+**When to use Creddy:** Giving Claude Code a GitHub token that expires in 10 minutes.
+
+They solve different problems. Many teams will use both.
+
+## Creddy vs Cloud Secrets Managers
+
+AWS Secrets Manager, GCP Secret Manager, Azure Key Vault — these are cloud-native secrets storage.
+
+| | Cloud Secrets Managers | Creddy |
+|---|---|---|
+| **Model** | Store and retrieve secrets | Generate ephemeral credentials |
+| **Vendor** | Cloud provider lock-in | Self-hosted, provider agnostic |
+| **Agent identity** | Not a focus | Core feature |
+| **Credential scoping** | Manual, per-secret | Automatic, per-agent |
+| **Cost** | Per-secret, per-request pricing | Free |
+
+**When to use cloud secrets managers:** Production apps on that cloud, team secret sharing.
+
+**When to use Creddy:** You want agents to have their own scoped identities, not access to a shared secret store.
+
+## Creddy vs Doppler
+
+[Doppler](https://www.doppler.com/) is a secrets management platform for development teams.
+
+| | Doppler | Creddy |
+|---|---|---|
+| **Focus** | Team secrets sync, env management | Agent credential isolation |
+| **Model** | Centralized secrets store | Ephemeral credential broker |
+| **Pricing** | Free tier, then paid | Free forever (Apache 2.0) |
+| **Hosting** | SaaS | Self-hosted only |
+| **Agent identity** | Not a focus | Core feature |
+
+**When to use Doppler:** Syncing environment variables across your team and CI/CD.
+
+**When to use Creddy:** Giving each AI agent its own isolated credentials with automatic expiry.
+
+*Note: Creddy can actually issue Doppler service tokens as one of its backends — they complement each other.*
+
+## Creddy vs Environment Variables / .env Files
+
+The simplest approach: put tokens in `.env` and let agents use them.
+
+| | .env files | Creddy |
+|---|---|---|
+| **Setup** | Instant | Minutes |
+| **Agent isolation** | ❌ All agents share credentials | ✅ Each agent gets unique credentials |
+| **Credential expiry** | ❌ Tokens live forever | ✅ Automatic TTL |
+| **Audit trail** | ❌ No visibility | ✅ Full logging |
+| **Blast radius** | 🔴 Compromised token = full access | 🟢 Compromised token = limited scope, auto-expires |
+
+**When to use .env:** Quick experiments, trusted environments, single-agent setups.
+
+**When to use Creddy:** Multiple agents, any concern about credential exposure, need for auditability.
+
+## What Creddy Is Not
+
+To be clear about Creddy's scope:
+
+- ❌ **Not a secrets store** — doesn't store your master credentials (you configure backends separately)
+- ❌ **Not for production data** — don't use it for customer encryption keys or database passwords
+- ❌ **Not enterprise software** — no HA clustering, no compliance certifications
+- ❌ **Not a Vault replacement** — if you need Vault, you need Vault
+
+## What Creddy Is
+
+- ✅ **Agent-native** — built specifically for AI agent workflows
+- ✅ **Ephemeral by default** — credentials expire automatically
+- ✅ **Scoped access** — agents only get what they need
+- ✅ **Simple** — single binary, runs anywhere
+- ✅ **Free** — Apache 2.0, no limits
+
+---
+
+Still not sure which tool to use? [Open an issue](https://github.com/getcreddy/creddy/issues) and describe your use case — we're happy to help.
