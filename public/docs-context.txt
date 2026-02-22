@@ -1822,6 +1822,964 @@ creddy audit --limit 10
 Shows who requested what, when, and from where—useful for security reviews and compliance.
 
 ---
+## plugins/building-plugins.mdx
+
+# Building Plugins
+
+This guide walks through creating a Creddy plugin from scratch.
+
+## Overview
+
+Creddy plugins are standalone binaries that communicate with Creddy core via gRPC. The [Plugin SDK](https://github.com/getcreddy/creddy-plugin-sdk) handles the communication layer — you just implement the credential logic.
+
+## Prerequisites
+
+- Go 1.21 or later
+- Basic understanding of the service you're integrating
+
+## Quick Start
+
+### 1. Create the project
+
+```bash
+mkdir creddy-myservice
+cd creddy-myservice
+go mod init github.com/yourorg/creddy-myservice
+```
+
+### 2. Add the SDK dependency
+
+```bash
+go get github.com/getcreddy/creddy-plugin-sdk
+```
+
+### 3. Implement the plugin
+
+Create `main.go`:
+
+```go
+package main
+
+    sdk "github.com/getcreddy/creddy-plugin-sdk"
+)
+
+func main() {
+    sdk.ServeWithStandalone(&MyServicePlugin{}, nil)
+}
+```
+
+Create `plugin.go`:
+
+```go
+package main
+
+    "context"
+    "encoding/json"
+    "fmt"
+    "time"
+
+    sdk "github.com/getcreddy/creddy-plugin-sdk"
+)
+
+type MyServicePlugin struct {
+    config *Config
+}
+
+type Config struct {
+    APIKey  string `json:"api_key"`
+    BaseURL string `json:"base_url"`
+}
+
+// Info returns plugin metadata
+func (p *MyServicePlugin) Info(ctx context.Context) (*sdk.PluginInfo, error) {
+    return &sdk.PluginInfo{
+        Name:             "myservice",
+        Version:          "0.1.0",
+        Description:      "MyService API tokens",
+        MinCreddyVersion: "0.4.0",
+    }, nil
+}
+
+// Scopes returns the scope patterns this plugin handles
+func (p *MyServicePlugin) Scopes(ctx context.Context) ([]sdk.ScopeSpec, error) {
+    return []sdk.ScopeSpec{
+        {
+            Pattern:     "myservice:*",
+            Description: "Full access to MyService",
+            Examples:    []string{"myservice:*", "myservice:read"},
+        },
+    }, nil
+}
+
+// Configure parses and validates the configuration
+func (p *MyServicePlugin) Configure(ctx context.Context, configJSON string) error {
+    var config Config
+    if err := json.Unmarshal([]byte(configJSON), &config); err != nil {
+        return fmt.Errorf("invalid config: %w", err)
+    }
+    
+    if config.APIKey == "" {
+        return fmt.Errorf("api_key is required")
+    }
+    
+    p.config = &config
+    return nil
+}
+
+// Validate tests connectivity with the configured credentials
+func (p *MyServicePlugin) Validate(ctx context.Context) error {
+    if p.config == nil {
+        return fmt.Errorf("plugin not configured")
+    }
+    
+    // TODO: Make a test API call to verify credentials
+    // Example: _, err := p.client.GetCurrentUser(ctx)
+    
+    return nil
+}
+
+// GetCredential generates a new ephemeral credential
+func (p *MyServicePlugin) GetCredential(ctx context.Context, req *sdk.CredentialRequest) (*sdk.Credential, error) {
+    if p.config == nil {
+        return nil, fmt.Errorf("plugin not configured")
+    }
+    
+    // TODO: Call your service's API to generate a token
+    // This is where the actual integration logic goes
+    
+    token := "generated-token-here"
+    expiresAt := time.Now().Add(req.TTL)
+    
+    return &sdk.Credential{
+        Value:      token,
+        ExpiresAt:  expiresAt,
+        ExternalID: "optional-id-for-revocation",
+        Metadata: map[string]string{
+            "scope": req.Scope,
+        },
+    }, nil
+}
+
+// RevokeCredential revokes a previously issued credential
+func (p *MyServicePlugin) RevokeCredential(ctx context.Context, externalID string) error {
+    // TODO: Call your service's API to revoke the token
+    // Return nil if revocation isn't supported
+    return nil
+}
+
+// MatchScope checks if this plugin handles the given scope
+func (p *MyServicePlugin) MatchScope(ctx context.Context, scope string) (bool, error) {
+    // Return true if scope starts with "myservice:"
+    return len(scope) > 10 && scope[:10] == "myservice:", nil
+}
+```
+
+### 4. Build and test
+
+```bash
+# Build
+go build -o creddy-myservice .
+
+# Test standalone
+./creddy-myservice info
+./creddy-myservice scopes
+
+# Test with config
+echo '{"api_key": "test-key"}' > test-config.json
+./creddy-myservice validate --config test-config.json
+./creddy-myservice get --config test-config.json --scope "myservice:test" --ttl 10m
+```
+
+### 5. Install locally
+
+```bash
+cp creddy-myservice ~/.creddy/plugins/
+```
+
+## Plugin Interface
+
+The SDK defines this interface:
+
+```go
+type Plugin interface {
+    // Metadata
+    Info(ctx context.Context) (*PluginInfo, error)
+    Scopes(ctx context.Context) ([]ScopeSpec, error)
+    
+    // Configuration
+    Configure(ctx context.Context, config string) error
+    Validate(ctx context.Context) error
+    
+    // Credentials
+    GetCredential(ctx context.Context, req *CredentialRequest) (*Credential, error)
+    RevokeCredential(ctx context.Context, externalID string) error
+    MatchScope(ctx context.Context, scope string) (bool, error)
+}
+```
+
+### PluginInfo
+
+```go
+type PluginInfo struct {
+    Name             string  // Plugin identifier (e.g., "github")
+    Version          string  // Semantic version (e.g., "1.2.3")
+    Description      string  // Human-readable description
+    MinCreddyVersion string  // Minimum Creddy version required
+}
+```
+
+### ScopeSpec
+
+```go
+type ScopeSpec struct {
+    Pattern     string   // Scope pattern (e.g., "myservice:*")
+    Description string   // What this scope grants
+    Examples    []string // Example scope values
+}
+```
+
+### CredentialRequest
+
+```go
+type CredentialRequest struct {
+    Agent      Agent             // Agent requesting the credential
+    Scope      string            // Requested scope
+    TTL        time.Duration     // Requested time-to-live
+    Parameters map[string]string // Additional parameters
+}
+
+type Agent struct {
+    ID     string   // Unique agent identifier
+    Name   string   // Human-readable name
+    Scopes []string // Agent's authorized scopes
+}
+```
+
+### Credential
+
+```go
+type Credential struct {
+    Value      string            // The credential value (token, key, etc.)
+    ExpiresAt  time.Time         // When the credential expires
+    ExternalID string            // Optional ID for revocation
+    Metadata   map[string]string // Optional additional data
+}
+```
+
+## Development Workflow
+
+### Standalone Mode
+
+The SDK provides a CLI for testing without Creddy:
+
+```bash
+./creddy-myservice info                    # Show plugin metadata
+./creddy-myservice scopes                  # List supported scopes
+./creddy-myservice validate --config X     # Validate configuration
+./creddy-myservice get --config X --scope Y --ttl 10m
+./creddy-myservice revoke --config X --external-id Z
+```
+
+### Local Development
+
+Use `CREDDY_PLUGIN_DIR` to point Creddy at your development build:
+
+```bash
+# Terminal 1: Build and watch
+go build -o ./bin/creddy-myservice . && \
+  CREDDY_PLUGIN_DIR=./bin creddy server
+
+# Terminal 2: Test
+creddy get myservice --scope "myservice:test"
+```
+
+### Debug Logging
+
+Enable verbose plugin communication:
+
+```bash
+CREDDY_PLUGIN_DEBUG=1 creddy get myservice --scope "myservice:test"
+```
+
+## Best Practices
+
+### Error Handling
+
+Return clear, actionable errors:
+
+```go
+// Bad
+return nil, fmt.Errorf("failed")
+
+// Good
+return nil, fmt.Errorf("myservice API error: %s (status %d)", resp.Message, resp.StatusCode)
+```
+
+### Configuration Validation
+
+Validate early in `Configure()`:
+
+```go
+func (p *MyPlugin) Configure(ctx context.Context, configJSON string) error {
+    var config Config
+    if err := json.Unmarshal([]byte(configJSON), &config); err != nil {
+        return fmt.Errorf("invalid JSON: %w", err)
+    }
+    
+    // Validate required fields
+    if config.APIKey == "" {
+        return fmt.Errorf("api_key is required")
+    }
+    
+    // Validate format
+    if !strings.HasPrefix(config.APIKey, "sk_") {
+        return fmt.Errorf("api_key must start with 'sk_'")
+    }
+    
+    p.config = &config
+    return nil
+}
+```
+
+### Scope Matching
+
+Be precise with scope matching:
+
+```go
+func (p *MyPlugin) MatchScope(ctx context.Context, scope string) (bool, error) {
+    // Only match scopes that start with your prefix
+    if !strings.HasPrefix(scope, "myservice:") {
+        return false, nil
+    }
+    
+    // Validate the scope is well-formed
+    parts := strings.Split(scope, ":")
+    if len(parts)  24*time.Hour {
+        ttl = 24 * time.Hour  // Service max
+    }
+    
+    // ... generate credential with this TTL
+}
+```
+
+## Testing
+
+### Unit Tests
+
+```go
+func TestPlugin_Configure(t *testing.T) {
+    p := &MyServicePlugin{}
+    
+    // Valid config
+    err := p.Configure(context.Background(), `{"api_key": "sk_test"}`)
+    if err != nil {
+        t.Fatalf("expected no error, got: %v", err)
+    }
+    
+    // Missing required field
+    err = p.Configure(context.Background(), `{}`)
+    if err == nil {
+        t.Fatal("expected error for missing api_key")
+    }
+}
+```
+
+### Integration Tests
+
+```go
+func TestPlugin_GetCredential(t *testing.T) {
+    if os.Getenv("MYSERVICE_API_KEY") == "" {
+        t.Skip("MYSERVICE_API_KEY not set")
+    }
+    
+    p := &MyServicePlugin{}
+    config := fmt.Sprintf(`{"api_key": "%s"}`, os.Getenv("MYSERVICE_API_KEY"))
+    
+    if err := p.Configure(context.Background(), config); err != nil {
+        t.Fatalf("configure failed: %v", err)
+    }
+    
+    cred, err := p.GetCredential(context.Background(), &sdk.CredentialRequest{
+        Scope: "myservice:test",
+        TTL:   10 * time.Minute,
+    })
+    if err != nil {
+        t.Fatalf("get credential failed: %v", err)
+    }
+    
+    if cred.Value == "" {
+        t.Fatal("expected non-empty credential value")
+    }
+}
+```
+
+## Distribution
+
+### Building Releases
+
+```bash
+# Build for multiple platforms
+GOOS=darwin GOARCH=arm64 go build -o dist/creddy-myservice-darwin-arm64 .
+GOOS=darwin GOARCH=amd64 go build -o dist/creddy-myservice-darwin-amd64 .
+GOOS=linux GOARCH=amd64 go build -o dist/creddy-myservice-linux-amd64 .
+GOOS=linux GOARCH=arm64 go build -o dist/creddy-myservice-linux-arm64 .
+```
+
+### GitHub Releases
+
+Create a release with binaries attached. Users can install directly:
+
+```bash
+creddy plugin install https://github.com/yourorg/creddy-myservice/releases/download/v0.1.0/creddy-myservice-linux-amd64.tar.gz
+```
+
+### Plugin Registry
+
+For wider distribution, consider submitting to the community plugins list in [Third-Party Plugins](/docs/plugins/third-party).
+
+## Examples
+
+- [creddy-github](https://github.com/getcreddy/creddy-github) — GitHub App tokens
+- [creddy-anthropic](https://github.com/getcreddy/creddy-anthropic) — Anthropic API keys
+- [creddy-doppler](https://github.com/getcreddy/creddy-doppler) — Doppler service tokens
+
+---
+
+Questions? [Open an issue](https://github.com/getcreddy/creddy/issues) or check the [Plugin SDK](https://github.com/getcreddy/creddy-plugin-sdk) repository.
+
+---
+## plugins/first-party.mdx
+
+# First-Party Plugins
+
+First-party plugins are built and maintained by the Creddy team. They're hosted on the official plugin registry and signed for authenticity.
+
+## Official Plugins
+
+| Plugin | Description | Status |
+|--------|-------------|--------|
+| [github](#github) | GitHub App installation tokens | ✅ Stable |
+| [anthropic](#anthropic) | Anthropic API keys | ✅ Stable |
+| [doppler](#doppler) | Doppler service tokens | ✅ Stable |
+| [aws](#aws) | AWS IAM temporary credentials | 🚧 Coming Soon |
+| [openai](#openai) | OpenAI API keys | 🚧 Coming Soon |
+
+----|-------------|
+| `github:*` | All repos the App is installed on |
+| `github:owner/*` | All repos under an owner/org |
+| `github:owner/repo` | Specific repository |
+| `github:owner/repo:read` | Read-only access |
+| `github:owner/repo:write` | Write access (default) |
+
+### Releases
+
+#### v0.2.1 (Latest)
+- Fixed: Token scoping for repos with special characters
+- Fixed: Installation discovery when multiple orgs installed
+
+#### v0.2.0
+- Added: Repository-level scoping (`github:owner/repo`)
+- Added: Read/write permission modifiers (`:read`, `:write`)
+- Added: Owner wildcard support (`github:owner/*`)
+
+#### v0.1.0
+- Initial release
+- Basic installation token generation
+
+---
+
+## anthropic
+
+Ephemeral Anthropic API keys via the Admin API.
+
+**Repository:** [getcreddy/creddy-anthropic](https://github.com/getcreddy/creddy-anthropic)
+
+### Installation
+
+```bash
+creddy plugin install anthropic
+```
+
+### Configuration
+
+```bash
+creddy backend add anthropic \
+  --admin-key "sk-admin-xxx"
+```
+
+### Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `anthropic:*` | Full API access |
+| `anthropic:messages` | Messages API only |
+| `anthropic:messages:read` | Read-only (completions) |
+
+### Requirements
+
+- Anthropic Scale or Enterprise plan (Admin API access required)
+
+### Releases
+
+#### v0.1.3 (Latest)
+- Added: External ID tracking for revocation
+- Fixed: TTL handling for keys > 24h
+
+#### v0.1.2
+- Added: Scope-based permission levels
+- Improved: Error messages for API failures
+
+#### v0.1.1
+- Fixed: Key cleanup on agent unenrollment
+
+#### v0.1.0
+- Initial release
+- Basic API key generation and revocation
+
+---
+
+## doppler
+
+Scoped Doppler service tokens.
+
+**Repository:** [getcreddy/creddy-doppler](https://github.com/getcreddy/creddy-doppler)
+
+### Installation
+
+```bash
+creddy plugin install doppler
+```
+
+### Configuration
+
+```bash
+creddy backend add doppler \
+  --token "dp.st.xxx"
+```
+
+### Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `doppler:project/config` | Access to specific project/config |
+| `doppler:project/config:read` | Read-only access |
+| `doppler:project/*` | All configs in a project |
+
+### Releases
+
+#### v0.1.2 (Latest)
+- Added: Config wildcard support (`doppler:project/*`)
+- Fixed: Token revocation on TTL expiry
+
+#### v0.1.1
+- Added: Read-only scope modifier
+- Improved: Validation error messages
+
+#### v0.1.0
+- Initial release
+- Basic service token generation
+
+---
+
+## aws
+
+AWS IAM temporary credentials via STS.
+
+**Status:** 🚧 Coming Soon
+
+### Planned Features
+
+- AssumeRole for temporary credentials
+- Scoped IAM policies
+- Session tags for audit trails
+- Support for cross-account access
+
+---
+
+## openai
+
+Ephemeral OpenAI API keys.
+
+**Status:** 🚧 Coming Soon
+
+### Planned Features
+
+- Project-scoped API keys
+- Usage limits per key
+- Model restrictions
+
+---
+
+## Security
+
+First-party plugins are:
+
+- **Signed** — Binary checksums verified against official signatures
+- **Audited** — Code reviewed by the Creddy team
+- **Versioned** — Pinnable to specific versions for stability
+- **Open source** — Full source code available for inspection
+
+Verify a plugin signature:
+
+```bash
+creddy plugin verify github
+```
+
+Output:
+```
+Plugin:     github
+Version:    0.2.1
+Checksum:   sha256:a1b2c3d4...
+Signature:  ✓ Valid (signed by getcreddy)
+```
+
+---
+
+## Support
+
+For issues with first-party plugins:
+
+- [GitHub Issues](https://github.com/getcreddy/creddy/issues) — Bug reports and feature requests
+- Plugin-specific repos — For plugin-specific issues
+
+---
+
+Next: [Third-Party Plugins](/docs/plugins/third-party) | [Building Plugins](/docs/plugins/building-plugins)
+
+---
+## plugins/index.mdx
+
+# Plugins
+
+Creddy uses a plugin architecture for credential backends. Each integration (GitHub, Anthropic, Doppler, etc.) is a separate binary that communicates with Creddy core via gRPC.
+
+## Why Plugins?
+
+- **Independent releases** — Plugins can be updated without updating Creddy core
+- **Smaller core** — Only install the integrations you need
+- **Community extensibility** — Anyone can build and share plugins
+- **Private integrations** — Build internal plugins for proprietary systems
+
+## Discovering Plugins
+
+List available plugins from the official registry:
+
+```bash
+creddy plugin list
+```
+
+Output:
+```
+NAME        VERSION   DESCRIPTION                                      INSTALLED
+github      0.2.1     GitHub App installation tokens                   ✓ 0.2.1
+anthropic   0.1.3     Anthropic API keys (Admin API)                   ✓ 0.1.3
+doppler     0.1.2     Doppler service tokens                           -
+aws         0.1.0     AWS IAM temporary credentials                    -
+```
+
+Search for plugins:
+
+```bash
+creddy plugin search docker
+```
+
+## Installing Plugins
+
+Install from the official registry:
+
+```bash
+# Install latest version
+creddy plugin install github
+
+# Install specific version
+creddy plugin install github@0.2.0
+
+# Install multiple plugins
+creddy plugin install github anthropic doppler
+```
+
+Install from a custom URL (for private/third-party plugins):
+
+```bash
+creddy plugin install https://internal.corp/plugins/salesforce
+creddy plugin install https://github.com/someone/creddy-custom/releases/download/v0.1.0/creddy-custom-linux-amd64.tar.gz
+```
+
+## Using Plugins
+
+Once installed, plugins are automatically available. Add a backend:
+
+```bash
+# GitHub plugin
+creddy backend add github \
+  --app-id 123456 \
+  --installation-id 78901234 \
+  --private-key /path/to/app.pem
+
+# Doppler plugin  
+creddy backend add doppler \
+  --token "dp.st.xxx"
+```
+
+Request credentials:
+
+```bash
+# Uses the github plugin
+creddy get github --scope "github:myorg/myrepo"
+
+# Uses the doppler plugin
+creddy get doppler --scope "doppler:myproject/production"
+```
+
+## Upgrading Plugins
+
+Check for updates:
+
+```bash
+creddy plugin outdated
+```
+
+Output:
+```
+NAME        INSTALLED   LATEST    
+github      0.2.0       0.2.1     
+doppler     0.1.1       0.1.2     
+```
+
+Upgrade plugins:
+
+```bash
+# Upgrade specific plugin
+creddy plugin upgrade github
+
+# Upgrade all plugins
+creddy plugin upgrade --all
+```
+
+## Managing Plugins
+
+View installed plugins:
+
+```bash
+creddy plugin list --installed
+```
+
+Get plugin details:
+
+```bash
+creddy plugin info github
+```
+
+Output:
+```
+Name:              github
+Version:           0.2.1
+Description:       GitHub App installation tokens with repository scoping
+Min Creddy Version: 0.4.0
+Installed:         ~/.creddy/plugins/creddy-github
+Source:            https://plugins.creddy.dev/github/0.2.1
+
+Scopes:
+  github:*              All repositories the App is installed on
+  github:/*      All repositories under an owner/org
+  github:/ Specific repository (add :read or :write)
+```
+
+Remove a plugin:
+
+```bash
+creddy plugin remove github
+```
+
+## Plugin Locations
+
+Plugins are stored in `~/.creddy/plugins/` by default:
+
+```
+~/.creddy/
+  plugins/
+    creddy-github
+    creddy-anthropic
+    creddy-doppler
+```
+
+Override with environment variable:
+
+```bash
+export CREDDY_PLUGIN_DIR=/opt/creddy/plugins
+```
+
+## Troubleshooting
+
+### Plugin not found
+
+```bash
+# Check if plugin is installed
+creddy plugin list --installed
+
+# Reinstall
+creddy plugin remove github
+creddy plugin install github
+```
+
+### Plugin version mismatch
+
+```
+Error: plugin github requires Creddy >= 0.5.0 (you have 0.4.2)
+```
+
+Upgrade Creddy or install an older plugin version:
+
+```bash
+creddy plugin install github@0.1.5
+```
+
+### Debug plugin communication
+
+```bash
+CREDDY_PLUGIN_DEBUG=1 creddy get github --scope "github:myorg/repo"
+```
+
+---
+
+Next: [First-Party Plugins](/docs/plugins/first-party) | [Third-Party Plugins](/docs/plugins/third-party) | [Building Plugins](/docs/plugins/building-plugins)
+
+---
+## plugins/third-party.mdx
+
+# Third-Party Plugins
+
+Third-party plugins are created by the community or organizations for their own needs. They're not maintained by the Creddy team.
+
+## Using Third-Party Plugins
+
+Install from a URL:
+
+```bash
+# From a GitHub release
+creddy plugin install https://github.com/someone/creddy-salesforce/releases/download/v0.1.0/creddy-salesforce-linux-amd64.tar.gz
+
+# From a private registry
+creddy plugin install https://plugins.internal.corp/creddy-internal-auth
+```
+
+## Security Considerations
+
+⚠️ **Third-party plugins run as subprocesses with access to your Creddy configuration.**
+
+Before installing a third-party plugin:
+
+1. **Review the source code** — Only install plugins from sources you trust
+2. **Check the publisher** — Is this a known developer/organization?
+3. **Verify checksums** — If provided, verify the download matches
+4. **Start with read-only** — Test with minimal scopes first
+5. **Monitor behavior** — Watch for unexpected network calls or file access
+
+### What plugins can access
+
+Plugins receive:
+- Configuration you provide (API keys, tokens, etc.)
+- Agent information (ID, name, scopes)
+- Credential requests (scope, TTL)
+
+Plugins **cannot** access:
+- Other backends' configurations
+- Creddy's database directly
+- Other plugins
+
+### Network isolation
+
+For high-security environments, consider:
+
+```bash
+# Run Creddy with network restrictions
+# (implementation depends on your environment)
+firejail --net=none creddy server  # Linux
+```
+
+## Building Private Plugins
+
+Organizations often need plugins for internal systems. See [Building Plugins](/docs/plugins/building-plugins) for a complete guide.
+
+Common use cases:
+- Internal SSO/authentication systems
+- Proprietary APIs
+- Custom secret stores
+- Legacy systems
+
+## Community Plugins
+
+> **Note:** This list is community-maintained. Inclusion doesn't imply endorsement.
+
+| Plugin | Description | Author |
+|--------|-------------|--------|
+| *None yet* | Be the first! | - |
+
+### Submitting a Plugin
+
+To add your plugin to this list:
+
+1. Ensure it follows the [plugin guidelines](#plugin-guidelines)
+2. Open a PR to [getcreddy/creddy-docs](https://github.com/getcreddy/creddy-docs)
+3. Add your plugin to the table above
+
+### Plugin Guidelines
+
+Community plugins should:
+
+- ✅ Be open source (or clearly documented)
+- ✅ Include a README with setup instructions
+- ✅ Specify minimum Creddy version
+- ✅ Handle errors gracefully
+- ✅ Not collect telemetry without disclosure
+
+## Private Plugin Registries
+
+Organizations can host their own plugin registries:
+
+```bash
+# Configure a private registry
+creddy config set plugin.registry https://plugins.internal.corp
+
+# Or use environment variable
+export CREDDY_PLUGIN_REGISTRY=https://plugins.internal.corp
+```
+
+Registry format (JSON):
+```json
+{
+  "plugins": {
+    "internal-auth": {
+      "description": "Internal authentication system",
+      "latest": "0.3.1",
+      "versions": {
+        "0.3.1": {
+          "url": "https://plugins.internal.corp/internal-auth/0.3.1/{os}-{arch}.tar.gz",
+          "sha256": {
+            "linux-amd64": "abc123...",
+            "darwin-arm64": "def456..."
+          },
+          "min_creddy_version": "0.4.0"
+        }
+      }
+    }
+  }
+}
+```
+
+## Reporting Issues
+
+For security issues with third-party plugins, contact the plugin author directly.
+
+For plugins that violate guidelines or are malicious:
+- [Open an issue](https://github.com/getcreddy/creddy/issues) to have them removed from community lists
+- We cannot take action against plugins hosted elsewhere
+
+---
+
+Next: [Building Plugins](/docs/plugins/building-plugins)
+
+---
 ## pricing.mdx
 
 # Pricing

@@ -5,6 +5,7 @@ export default {
   server: 'Server Setup',
   authentication: 'Client Authentication',
   integrations: 'Integrations',
+  plugins: 'Plugins',
   reference: 'Reference',
   examples: 'Examples',
   comparisons: 'Comparisons',

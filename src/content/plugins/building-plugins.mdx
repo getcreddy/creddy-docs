@@ -1,0 +1,440 @@
+# Building Plugins
+
+This guide walks through creating a Creddy plugin from scratch.
+
+## Overview
+
+Creddy plugins are standalone binaries that communicate with Creddy core via gRPC. The [Plugin SDK](https://github.com/getcreddy/creddy-plugin-sdk) handles the communication layer — you just implement the credential logic.
+
+## Prerequisites
+
+- Go 1.21 or later
+- Basic understanding of the service you're integrating
+
+## Quick Start
+
+### 1. Create the project
+
+```bash
+mkdir creddy-myservice
+cd creddy-myservice
+go mod init github.com/yourorg/creddy-myservice
+```
+
+### 2. Add the SDK dependency
+
+```bash
+go get github.com/getcreddy/creddy-plugin-sdk
+```
+
+### 3. Implement the plugin
+
+Create `main.go`:
+
+```go
+package main
+
+import (
+    sdk "github.com/getcreddy/creddy-plugin-sdk"
+)
+
+func main() {
+    sdk.ServeWithStandalone(&MyServicePlugin{}, nil)
+}
+```
+
+Create `plugin.go`:
+
+```go
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "time"
+
+    sdk "github.com/getcreddy/creddy-plugin-sdk"
+)
+
+type MyServicePlugin struct {
+    config *Config
+}
+
+type Config struct {
+    APIKey  string `json:"api_key"`
+    BaseURL string `json:"base_url"`
+}
+
+// Info returns plugin metadata
+func (p *MyServicePlugin) Info(ctx context.Context) (*sdk.PluginInfo, error) {
+    return &sdk.PluginInfo{
+        Name:             "myservice",
+        Version:          "0.1.0",
+        Description:      "MyService API tokens",
+        MinCreddyVersion: "0.4.0",
+    }, nil
+}
+
+// Scopes returns the scope patterns this plugin handles
+func (p *MyServicePlugin) Scopes(ctx context.Context) ([]sdk.ScopeSpec, error) {
+    return []sdk.ScopeSpec{
+        {
+            Pattern:     "myservice:*",
+            Description: "Full access to MyService",
+            Examples:    []string{"myservice:*", "myservice:read"},
+        },
+    }, nil
+}
+
+// Configure parses and validates the configuration
+func (p *MyServicePlugin) Configure(ctx context.Context, configJSON string) error {
+    var config Config
+    if err := json.Unmarshal([]byte(configJSON), &config); err != nil {
+        return fmt.Errorf("invalid config: %w", err)
+    }
+    
+    if config.APIKey == "" {
+        return fmt.Errorf("api_key is required")
+    }
+    
+    p.config = &config
+    return nil
+}
+
+// Validate tests connectivity with the configured credentials
+func (p *MyServicePlugin) Validate(ctx context.Context) error {
+    if p.config == nil {
+        return fmt.Errorf("plugin not configured")
+    }
+    
+    // TODO: Make a test API call to verify credentials
+    // Example: _, err := p.client.GetCurrentUser(ctx)
+    
+    return nil
+}
+
+// GetCredential generates a new ephemeral credential
+func (p *MyServicePlugin) GetCredential(ctx context.Context, req *sdk.CredentialRequest) (*sdk.Credential, error) {
+    if p.config == nil {
+        return nil, fmt.Errorf("plugin not configured")
+    }
+    
+    // TODO: Call your service's API to generate a token
+    // This is where the actual integration logic goes
+    
+    token := "generated-token-here"
+    expiresAt := time.Now().Add(req.TTL)
+    
+    return &sdk.Credential{
+        Value:      token,
+        ExpiresAt:  expiresAt,
+        ExternalID: "optional-id-for-revocation",
+        Metadata: map[string]string{
+            "scope": req.Scope,
+        },
+    }, nil
+}
+
+// RevokeCredential revokes a previously issued credential
+func (p *MyServicePlugin) RevokeCredential(ctx context.Context, externalID string) error {
+    // TODO: Call your service's API to revoke the token
+    // Return nil if revocation isn't supported
+    return nil
+}
+
+// MatchScope checks if this plugin handles the given scope
+func (p *MyServicePlugin) MatchScope(ctx context.Context, scope string) (bool, error) {
+    // Return true if scope starts with "myservice:"
+    return len(scope) > 10 && scope[:10] == "myservice:", nil
+}
+```
+
+### 4. Build and test
+
+```bash
+# Build
+go build -o creddy-myservice .
+
+# Test standalone
+./creddy-myservice info
+./creddy-myservice scopes
+
+# Test with config
+echo '{"api_key": "test-key"}' > test-config.json
+./creddy-myservice validate --config test-config.json
+./creddy-myservice get --config test-config.json --scope "myservice:test" --ttl 10m
+```
+
+### 5. Install locally
+
+```bash
+cp creddy-myservice ~/.creddy/plugins/
+```
+
+## Plugin Interface
+
+The SDK defines this interface:
+
+```go
+type Plugin interface {
+    // Metadata
+    Info(ctx context.Context) (*PluginInfo, error)
+    Scopes(ctx context.Context) ([]ScopeSpec, error)
+    
+    // Configuration
+    Configure(ctx context.Context, config string) error
+    Validate(ctx context.Context) error
+    
+    // Credentials
+    GetCredential(ctx context.Context, req *CredentialRequest) (*Credential, error)
+    RevokeCredential(ctx context.Context, externalID string) error
+    MatchScope(ctx context.Context, scope string) (bool, error)
+}
+```
+
+### PluginInfo
+
+```go
+type PluginInfo struct {
+    Name             string  // Plugin identifier (e.g., "github")
+    Version          string  // Semantic version (e.g., "1.2.3")
+    Description      string  // Human-readable description
+    MinCreddyVersion string  // Minimum Creddy version required
+}
+```
+
+### ScopeSpec
+
+```go
+type ScopeSpec struct {
+    Pattern     string   // Scope pattern (e.g., "myservice:*")
+    Description string   // What this scope grants
+    Examples    []string // Example scope values
+}
+```
+
+### CredentialRequest
+
+```go
+type CredentialRequest struct {
+    Agent      Agent             // Agent requesting the credential
+    Scope      string            // Requested scope
+    TTL        time.Duration     // Requested time-to-live
+    Parameters map[string]string // Additional parameters
+}
+
+type Agent struct {
+    ID     string   // Unique agent identifier
+    Name   string   // Human-readable name
+    Scopes []string // Agent's authorized scopes
+}
+```
+
+### Credential
+
+```go
+type Credential struct {
+    Value      string            // The credential value (token, key, etc.)
+    ExpiresAt  time.Time         // When the credential expires
+    ExternalID string            // Optional ID for revocation
+    Metadata   map[string]string // Optional additional data
+}
+```
+
+## Development Workflow
+
+### Standalone Mode
+
+The SDK provides a CLI for testing without Creddy:
+
+```bash
+./creddy-myservice info                    # Show plugin metadata
+./creddy-myservice scopes                  # List supported scopes
+./creddy-myservice validate --config X     # Validate configuration
+./creddy-myservice get --config X --scope Y --ttl 10m
+./creddy-myservice revoke --config X --external-id Z
+```
+
+### Local Development
+
+Use `CREDDY_PLUGIN_DIR` to point Creddy at your development build:
+
+```bash
+# Terminal 1: Build and watch
+go build -o ./bin/creddy-myservice . && \
+  CREDDY_PLUGIN_DIR=./bin creddy server
+
+# Terminal 2: Test
+creddy get myservice --scope "myservice:test"
+```
+
+### Debug Logging
+
+Enable verbose plugin communication:
+
+```bash
+CREDDY_PLUGIN_DEBUG=1 creddy get myservice --scope "myservice:test"
+```
+
+## Best Practices
+
+### Error Handling
+
+Return clear, actionable errors:
+
+```go
+// Bad
+return nil, fmt.Errorf("failed")
+
+// Good
+return nil, fmt.Errorf("myservice API error: %s (status %d)", resp.Message, resp.StatusCode)
+```
+
+### Configuration Validation
+
+Validate early in `Configure()`:
+
+```go
+func (p *MyPlugin) Configure(ctx context.Context, configJSON string) error {
+    var config Config
+    if err := json.Unmarshal([]byte(configJSON), &config); err != nil {
+        return fmt.Errorf("invalid JSON: %w", err)
+    }
+    
+    // Validate required fields
+    if config.APIKey == "" {
+        return fmt.Errorf("api_key is required")
+    }
+    
+    // Validate format
+    if !strings.HasPrefix(config.APIKey, "sk_") {
+        return fmt.Errorf("api_key must start with 'sk_'")
+    }
+    
+    p.config = &config
+    return nil
+}
+```
+
+### Scope Matching
+
+Be precise with scope matching:
+
+```go
+func (p *MyPlugin) MatchScope(ctx context.Context, scope string) (bool, error) {
+    // Only match scopes that start with your prefix
+    if !strings.HasPrefix(scope, "myservice:") {
+        return false, nil
+    }
+    
+    // Validate the scope is well-formed
+    parts := strings.Split(scope, ":")
+    if len(parts) < 2 {
+        return false, nil
+    }
+    
+    return true, nil
+}
+```
+
+### Credential TTL
+
+Respect the requested TTL when possible:
+
+```go
+func (p *MyPlugin) GetCredential(ctx context.Context, req *sdk.CredentialRequest) (*sdk.Credential, error) {
+    // Use requested TTL, but cap at service maximum
+    ttl := req.TTL
+    if ttl > 24*time.Hour {
+        ttl = 24 * time.Hour  // Service max
+    }
+    
+    // ... generate credential with this TTL
+}
+```
+
+## Testing
+
+### Unit Tests
+
+```go
+func TestPlugin_Configure(t *testing.T) {
+    p := &MyServicePlugin{}
+    
+    // Valid config
+    err := p.Configure(context.Background(), `{"api_key": "sk_test"}`)
+    if err != nil {
+        t.Fatalf("expected no error, got: %v", err)
+    }
+    
+    // Missing required field
+    err = p.Configure(context.Background(), `{}`)
+    if err == nil {
+        t.Fatal("expected error for missing api_key")
+    }
+}
+```
+
+### Integration Tests
+
+```go
+func TestPlugin_GetCredential(t *testing.T) {
+    if os.Getenv("MYSERVICE_API_KEY") == "" {
+        t.Skip("MYSERVICE_API_KEY not set")
+    }
+    
+    p := &MyServicePlugin{}
+    config := fmt.Sprintf(`{"api_key": "%s"}`, os.Getenv("MYSERVICE_API_KEY"))
+    
+    if err := p.Configure(context.Background(), config); err != nil {
+        t.Fatalf("configure failed: %v", err)
+    }
+    
+    cred, err := p.GetCredential(context.Background(), &sdk.CredentialRequest{
+        Scope: "myservice:test",
+        TTL:   10 * time.Minute,
+    })
+    if err != nil {
+        t.Fatalf("get credential failed: %v", err)
+    }
+    
+    if cred.Value == "" {
+        t.Fatal("expected non-empty credential value")
+    }
+}
+```
+
+## Distribution
+
+### Building Releases
+
+```bash
+# Build for multiple platforms
+GOOS=darwin GOARCH=arm64 go build -o dist/creddy-myservice-darwin-arm64 .
+GOOS=darwin GOARCH=amd64 go build -o dist/creddy-myservice-darwin-amd64 .
+GOOS=linux GOARCH=amd64 go build -o dist/creddy-myservice-linux-amd64 .
+GOOS=linux GOARCH=arm64 go build -o dist/creddy-myservice-linux-arm64 .
+```
+
+### GitHub Releases
+
+Create a release with binaries attached. Users can install directly:
+
+```bash
+creddy plugin install https://github.com/yourorg/creddy-myservice/releases/download/v0.1.0/creddy-myservice-linux-amd64.tar.gz
+```
+
+### Plugin Registry
+
+For wider distribution, consider submitting to the community plugins list in [Third-Party Plugins](/docs/plugins/third-party).
+
+## Examples
+
+- [creddy-github](https://github.com/getcreddy/creddy-github) — GitHub App tokens
+- [creddy-anthropic](https://github.com/getcreddy/creddy-anthropic) — Anthropic API keys
+- [creddy-doppler](https://github.com/getcreddy/creddy-doppler) — Doppler service tokens
+
+---
+
+Questions? [Open an issue](https://github.com/getcreddy/creddy/issues) or check the [Plugin SDK](https://github.com/getcreddy/creddy-plugin-sdk) repository.
