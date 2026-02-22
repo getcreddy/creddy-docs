@@ -7,4 +7,9 @@ export default {
   integrations: 'Integrations',
   reference: 'Reference',
   examples: 'Examples',
+  '---': {
+    type: 'separator',
+  },
+  pricing: 'Pricing',
+  contributing: 'Contributing',
 }
