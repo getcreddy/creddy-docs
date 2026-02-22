@@ -5,6 +5,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { X, Send, Loader2, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const transport = new DefaultChatTransport({
   api: '/api/chat',
@@ -232,6 +233,7 @@ export function DocsChatSidebar() {
                             return (
                               <div key={i} style={{ lineHeight: 1.6 }}>
                                 <ReactMarkdown
+                                  remarkPlugins={[remarkGfm]}
                                   components={{
                                     p: ({ children }) => <p style={{ margin: '0 0 8px 0' }}>{children}</p>,
                                     code: ({ children, className }) => {
