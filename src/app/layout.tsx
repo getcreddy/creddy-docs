@@ -1,42 +1,50 @@
-import { Footer, Layout, Navbar } from 'nextra-theme-docs'
-import { Head } from 'nextra/components'
-import { getPageMap } from 'nextra/page-map'
-import 'nextra-theme-docs/style.css'
+import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
+import { Geist, Geist_Mono } from 'next/font/google'
+import { JetBrains_Mono } from 'next/font/google'
+import '../styles/globals.css'
 
-export const metadata = {
-  title: 'Creddy',
-  description: 'Ephemeral credentials for AI agents',
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains",
+})
+
+export const metadata: Metadata = {
+  title: 'Creddy — Credential Management for AI Agents',
+  description: 'Open source, self-hosted identity service that issues ephemeral, scoped credentials to AI agents. Stop sharing your keys.',
+  icons: {
+    icon: [
+      { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
+      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-icon.png',
+  },
 }
 
-const navbar = (
-  <Navbar
-    logo={<b>Creddy</b>}
-    projectLink="https://github.com/getcreddy/creddy"
-  />
-)
+export const viewport: Viewport = {
+  themeColor: '#0b1628',
+}
 
-const footer = <Footer>Apache 2.0 {new Date().getFullYear()} © Creddy</Footer>
-
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const pageMap = await getPageMap()
   return (
     <html lang="en" dir="ltr" suppressHydrationWarning>
-      <Head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      </Head>
-      <body>
-        <Layout
-          navbar={navbar}
-          pageMap={pageMap}
-          docsRepositoryBase="https://github.com/getcreddy/creddy-docs/tree/main"
-          footer={footer}
-        >
-          {children}
-        </Layout>
+      <head>
+        <Script
+          defer
+          data-domain="creddy.dev"
+          src="https://plausible.machination.dev/js/script.js"
+          strategy="afterInteractive"
+        />
+      </head>
+      <body className={`font-sans antialiased ${geist.variable} ${geistMono.variable} ${jetbrainsMono.variable}`}>
+        {children}
       </body>
     </html>
   )
