@@ -1,0 +1,246 @@
+# Examples
+
+Real-world patterns for using Creddy with AI agents and automation.
+
+## CI/CD Bot with Read-Only Access
+
+A bot that monitors PRs and runs checks, but can't push code:
+
+```bash
+# Enrollment
+creddy enroll http://creddy:8400 --name ci-checker \
+  --can github:myorg/api:read \
+  --can github:myorg/web:read \
+  --can github:myorg/infra:read
+```
+
+```bash
+# In CI script
+export GITHUB_TOKEN=$(creddy get github --read-only)
+gh pr list --repo myorg/api
+gh pr checks --repo myorg/api 123
+```
+
+## Coding Agent with Scoped Write Access
+
+An AI coding agent that can modify code in specific repos:
+
+```bash
+# Enrollment
+creddy enroll http://creddy:8400 --name coding-agent \
+  --can github:myorg/api \
+  --can github:myorg/shared-lib
+```
+
+```bash
+# Agent workflow
+export GITHUB_TOKEN=$(creddy get github)
+
+# Clone and work
+git clone https://x-access-token:${GITHUB_TOKEN}@github.com/myorg/api.git
+cd api
+# ... make changes ...
+git commit -m "feat: add new endpoint"
+git push origin feature-branch
+
+# Create PR
+gh pr create --title "Add new endpoint" --body "Implemented by coding-agent"
+```
+
+## Time-Limited Token for One-Off Task
+
+Request a short-lived token for a quick operation:
+
+```bash
+# 5 minute token
+TOKEN=$(creddy get github --ttl 5m --repo myorg/config)
+
+# Quick read
+curl -H "Authorization: Bearer $TOKEN" \
+  https://api.github.com/repos/myorg/config/contents/settings.json
+```
+
+## Agent Requesting Additional Access
+
+An agent that starts with minimal access and requests more as needed:
+
+```bash
+# Initial enrollment (conservative)
+creddy enroll http://creddy:8400 --name helper-bot \
+  --can github:myorg/docs:read
+
+# Later, bot needs to edit docs
+creddy request --can github:myorg/docs
+
+# Admin approves, now bot can write
+creddy get github  # includes write access to docs
+```
+
+## Multiple Repos in One Token
+
+Agent working across several repos:
+
+```bash
+# Enrollment with multiple repos
+creddy enroll http://creddy:8400 --name monorepo-agent \
+  --can github:myorg/frontend \
+  --can github:myorg/backend \
+  --can github:myorg/shared
+
+# Single token covers all repos
+export GITHUB_TOKEN=$(creddy get github)
+
+# Work across repos
+gh api repos/myorg/frontend/pulls
+gh api repos/myorg/backend/pulls
+gh api repos/myorg/shared/pulls
+```
+
+## Org-Wide Access for Admin Bot
+
+A trusted bot with access to all org repos:
+
+```bash
+# Enrollment with wildcard
+creddy enroll http://creddy:8400 --name admin-bot \
+  --can github:myorg/*
+```
+
+```bash
+# Can access any repo in the org
+creddy get github --repo myorg/any-repo
+creddy get github --repo myorg/another-repo
+
+# Or get token for all
+creddy get github
+```
+
+## Script: Auto-Refresh Token
+
+For long-running agents, refresh token before expiry:
+
+```bash
+#!/bin/bash
+# refresh-token.sh
+
+TOKEN_FILE=/tmp/github-token
+REFRESH_MINS=50  # Refresh 10 mins before 1hr expiry
+
+while true; do
+  creddy get github > "$TOKEN_FILE"
+  export GITHUB_TOKEN=$(cat "$TOKEN_FILE")
+  echo "Token refreshed at $(date)"
+  sleep $((REFRESH_MINS * 60))
+done
+```
+
+## GitHub Actions Integration
+
+Use Creddy in GitHub Actions for cross-repo access:
+
+```yaml
+# .github/workflows/deploy.yml
+jobs:
+  deploy:
+    runs-on: self-hosted  # Must reach Creddy server
+    steps:
+      - name: Get deploy token
+        run: |
+          # Agent pre-enrolled with deploy repos access
+          export CREDDY_URL=${{ secrets.CREDDY_URL }}
+          export CREDDY_TOKEN=${{ secrets.CREDDY_AGENT_TOKEN }}
+          echo "GITHUB_TOKEN=$(creddy get github)" >> $GITHUB_ENV
+      
+      - name: Deploy to infra repo
+        run: |
+          gh workflow run deploy.yml --repo myorg/infra
+```
+
+## Separate Read/Write Tokens
+
+When you need different permission levels in the same workflow:
+
+```bash
+# Read token for fetching
+READ_TOKEN=$(creddy get github --read-only)
+
+# Write token only when needed
+WRITE_TOKEN=$(creddy get github)
+
+# Fetch with read token
+git clone https://x-access-token:${READ_TOKEN}@github.com/myorg/repo.git
+
+# Push with write token (only if changes made)
+if [ -n "$(git status --porcelain)" ]; then
+  git remote set-url origin https://x-access-token:${WRITE_TOKEN}@github.com/myorg/repo.git
+  git push
+fi
+```
+
+## Docker Container Agent
+
+Running an agent in Docker with Creddy:
+
+```dockerfile
+FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y curl git
+COPY creddy /usr/local/bin/
+
+# Agent token passed via environment
+ENV CREDDY_URL=http://creddy:8400
+# CREDDY_TOKEN set at runtime
+```
+
+```bash
+docker run -e CREDDY_TOKEN=$AGENT_TOKEN myagent \
+  sh -c 'export GITHUB_TOKEN=$(creddy get github) && git clone ...'
+```
+
+## Kubernetes CronJob
+
+Periodic task with fresh credentials each run:
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: repo-sync
+spec:
+  schedule: "0 * * * *"  # Every hour
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: sync
+            image: myagent:latest
+            env:
+            - name: CREDDY_URL
+              value: "http://creddy.creddy.svc:8400"
+            - name: CREDDY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent-credentials
+                  key: token
+            command:
+            - sh
+            - -c
+            - |
+              export GITHUB_TOKEN=$(creddy get github --ttl 30m)
+              # ... sync logic ...
+```
+
+## Audit Query: Who Accessed What
+
+Review credential usage:
+
+```bash
+# All GitHub tokens issued today
+creddy audit --action token_issued --limit 50
+
+# Tokens issued to a specific agent
+creddy audit --agent-id abc-123
+
+# Export for analysis
+creddy audit --limit 1000 | jq '.[] | {agent: .agent_name, backend: .backend, time: .timestamp}'
+```
