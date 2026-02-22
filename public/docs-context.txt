@@ -1,0 +1,2494 @@
+# Creddy Documentation
+
+Creddy is an open source, self-hosted credential management system for AI agents. It provides ephemeral, scoped credentials that automatically expire.
+
+
+---
+## authentication.mdx
+
+# Client Authentication
+
+Creddy uses public-key cryptography for client authentication. No shared secrets are stored after initial enrollment.
+
+## How It Works
+
+1. **Client generates a keypair** — Ed25519 keys are generated locally
+2. **Client requests enrollment** — Sends public key to server
+3. **Admin approves** — Via CLI, Slack, or other integration
+4. **Client is activated** — All requests are now signed with the private key
+
+```
+┌─────────────┐                           ┌─────────────┐
+│   Client    │  1. Generate keypair      │             │
+│             │  2. Send public key ────▶ │   Creddy    │
+│             │                           │   Server    │
+│             │  (pending approval)       │             │
+└─────────────┘                           └─────────────┘
+                                                 │
+                                                 │ 3. Notify admin
+                                                 ▼
+                                          ┌─────────────┐
+                                          │   Admin     │
+                                          │  (CLI/Slack)│
+                                          └─────────────┘
+                                                 │
+                                                 │ 4. Approve
+                                                 ▼
+┌─────────────┐                           ┌─────────────┐
+│   Client    │  5. Enrollment complete   │   Creddy    │
+│             │ ◀──────────────────────── │   Server    │
+│             │                           │             │
+│             │  6. Signed requests ────▶ │             │
+└─────────────┘                           └─────────────┘
+```
+
+## Enrolling a Client
+
+### Step 1: Initialize the Client
+
+```bash
+$ creddy init --name my-laptop --server https://creddy.example.com
+
+Generating keypair... done
+Registering with server... done
+
+Waiting for approval...
+  Name:        my-laptop
+  Fingerprint: SHA256:xK3E8f...
+  Expires:     4:58 remaining
+
+Ask an admin to approve, or run:
+  creddy admin approve enr_abc123
+
+⣾ Waiting for approval... (4:32 remaining)
+
+✓ Approved by admin@example.com
+✓ Client registered: cli_xyz789
+✓ Credentials saved to ~/.creddy/
+
+Ready. Try: creddy backends
+```
+
+The client generates an Ed25519 keypair and sends the public key to the server. The enrollment request is held in a "pending" state until an admin approves it.
+
+### Step 2: Admin Approval
+
+Admins can approve enrollments via CLI:
+
+```bash
+# List pending enrollments
+$ creddy admin enrollments
+
+ID            NAME        USER    HOST              IP              EXPIRES
+enr_abc123    my-laptop   marc    marcbook.local    192.168.1.50    4:32
+
+# Approve
+$ creddy admin approve enr_abc123
+✓ Approved my-laptop (cli_xyz789)
+
+# Or deny
+$ creddy admin deny enr_abc123 --reason "unknown device"
+✗ Denied my-laptop
+```
+
+Or via Slack (if configured):
+
+```
+🔑 New Client Enrollment Request
+
+Name:        my-laptop
+User:        marc  
+Host:        marcbook.local
+IP:          192.168.1.50
+Fingerprint: SHA256:xK3E8f...
+
+⏱️ Expires in 5 minutes
+
+[✓ Approve]  [✗ Deny]
+```
+
+## Request Signing
+
+After enrollment, all API requests are signed with the client's private key:
+
+```
+POST /api/v1/credentials HTTP/1.1
+Host: creddy.example.com
+X-Creddy-Client: cli_xyz789
+X-Creddy-Timestamp: 1708531200
+X-Creddy-Signature: base64(ed25519_sign(client_id + timestamp + method + path + body_hash))
+Content-Type: application/json
+
+{"backend": "github", "ttl": "1h"}
+```
+
+The server verifies:
+1. Client ID exists and is active
+2. Timestamp is within 5 minutes of server time
+3. Signature is valid for the request
+
+## Client Roles
+
+Clients can have different roles:
+
+| Role | Permissions |
+|------|-------------|
+| `operator` | Request credentials, list backends |
+| `admin` | All operator permissions + manage enrollments, configure backends |
+
+Assign a role when approving:
+
+```bash
+$ creddy admin approve enr_abc123 --role admin
+```
+
+Default role is `operator`.
+
+## Stored Credentials
+
+Client credentials are stored in `~/.creddy/`:
+
+```
+~/.creddy/
+├── config.yaml      # Server URL, client ID
+├── client.key       # Ed25519 private key (mode 0600)
+└── client_id        # Client identifier
+```
+
+The private key never leaves the client machine.
+
+## Key Rotation
+
+To rotate a client's keypair:
+
+```bash
+$ creddy rotate-key
+
+Generating new keypair... done
+Requesting key rotation... done
+
+New fingerprint: SHA256:yL4F9g...
+Old key will remain valid for 24 hours.
+
+✓ Key rotation complete
+```
+
+The server accepts both old and new keys during the grace period.
+
+## Revoking Clients
+
+Admins can revoke a client's access:
+
+```bash
+$ creddy admin clients
+
+ID            NAME        ROLE      LAST SEEN           STATUS
+cli_xyz789    my-laptop   operator  2024-01-15 15:30    active
+cli_abc123    ci-runner   operator  2024-01-15 14:00    active
+
+$ creddy admin revoke cli_xyz789
+✓ Revoked my-laptop
+```
+
+Revoked clients cannot make any API requests.
+
+## Bootstrap Admin
+
+On first server start, you need at least one admin. Options:
+
+### Option 1: Config File
+
+Add your public key fingerprint to the server config:
+
+```yaml
+# creddy-server.yaml
+admins:
+  - fingerprint: "SHA256:xK3E8f..."
+```
+
+### Option 2: Bootstrap Token
+
+Server generates a one-time admin token on first start:
+
+```bash
+$ creddy server
+No admin configured. Bootstrap token (single use):
+  ctk_XXXXXXXXXXXXX
+
+Run on your machine:
+  creddy init --admin-token ctk_XXXXXXXXXXXXX
+```
+
+## Auto-Approve Rules
+
+For CI/CD environments, you can configure auto-approve rules:
+
+```yaml
+# creddy-server.yaml
+enrollment:
+  auto_approve:
+    - cidr: 10.0.0.0/8           # Internal network
+    - hostname_pattern: "ci-*"   # CI runners
+  
+  # Enrollments expire after this duration
+  pending_ttl: 5m
+```
+
+Auto-approved clients get the `operator` role by default.
+
+---
+## concepts.mdx
+
+# Concepts
+
+Understanding Creddy's core concepts.
+
+## Credentials
+
+A **credential** is a short-lived token that grants access to an external service. Credentials are:
+
+- **Ephemeral** — They expire automatically
+- **Scoped** — They grant only specific permissions
+- **Signed** — They're cryptographically signed JWTs
+- **Auditable** — Every issuance is logged
+
+### Anatomy of a Credential
+
+```json
+{
+  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
+  "expires_at": "2024-01-15T16:00:00Z",
+  "backend": "github",
+  "scopes": ["repo:read", "issues:write"],
+  "metadata": {
+    "agent_id": "my-agent",
+    "task": "update-readme"
+  }
+}
+```
+
+## Backends
+
+A **backend** represents an external service that Creddy can issue credentials for. Backends are configured with the long-lived credentials that Creddy uses to generate short-lived tokens.
+
+### Supported Backend Types
+
+| Type | Description |
+|------|-------------|
+| `github` | GitHub personal access tokens or app tokens |
+| `aws` | AWS IAM credentials (STS temporary credentials) |
+| `generic` | Generic secret injection |
+
+### Backend Configuration
+
+```yaml
+backends:
+  my-github:
+    type: github
+    token: ghp_xxxxxxxxxxxx
+    default_ttl: 1h
+    max_ttl: 24h
+    allowed_scopes:
+      - repo:read
+      - repo:write
+      - issues:*
+```
+
+## Scopes
+
+**Scopes** define what a credential can do. They're backend-specific and follow the principle of least privilege.
+
+### Scope Patterns
+
+- `repo:read` — Exact match
+- `repo:*` — Wildcard (all repo permissions)
+- `*` — All scopes (use carefully)
+
+### Requesting Scopes
+
+When requesting a credential, specify only the scopes you need:
+
+```json
+{
+  "backend": "github",
+  "scopes": ["repo:read", "issues:write"]
+}
+```
+
+If no scopes are specified, the backend's default scopes are used.
+
+## TTL (Time to Live)
+
+**TTL** defines how long a credential is valid. Shorter is better.
+
+- **Minimum**: 1 minute
+- **Default**: Configured per backend (typically 1 hour)
+- **Maximum**: Configured per backend (typically 24 hours)
+
+### Choosing a TTL
+
+| Task Type | Recommended TTL |
+|-----------|-----------------|
+| Quick API call | 5-15 minutes |
+| CI/CD job | 1 hour |
+| Long-running task | 2-4 hours |
+| Background job | Match job timeout |
+
+## Audit Log
+
+Every credential issuance is logged in the **audit log**:
+
+```json
+{
+  "timestamp": "2024-01-15T15:00:00Z",
+  "action": "credential_issued",
+  "backend": "github",
+  "scopes": ["repo:read"],
+  "ttl": "1h",
+  "metadata": {
+    "agent_id": "my-agent",
+    "ip": "192.168.1.100"
+  }
+}
+```
+
+Query the audit log via the API or CLI:
+
+```bash
+creddy audit list --backend github --since 24h
+```
+
+## Signing Keys
+
+Creddy uses **Ed25519** keys to sign credentials. Keys are:
+
+- Generated automatically on first run
+- Stored in the data directory
+- Rotatable without downtime
+
+### Key Rotation
+
+```bash
+# Generate new key (old key remains valid)
+creddy keys rotate
+
+# List all keys
+creddy keys list
+
+# Revoke old key (after grace period)
+creddy keys revoke 
+```
+
+---
+## examples.mdx
+
+# Examples
+
+Real-world patterns for using Creddy with AI agents and automation.
+
+## CI/CD Bot with Read-Only Access
+
+A bot that monitors PRs and runs checks, but can't push code:
+
+```bash
+# Enrollment
+creddy enroll http://creddy:8400 --name ci-checker \
+  --can github:myorg/api:read \
+  --can github:myorg/web:read \
+  --can github:myorg/infra:read
+```
+
+```bash
+# In CI script
+export GITHUB_TOKEN=$(creddy get github --read-only)
+gh pr list --repo myorg/api
+gh pr checks --repo myorg/api 123
+```
+
+## Coding Agent with Scoped Write Access
+
+An AI coding agent that can modify code in specific repos:
+
+```bash
+# Enrollment
+creddy enroll http://creddy:8400 --name coding-agent \
+  --can github:myorg/api \
+  --can github:myorg/shared-lib
+```
+
+```bash
+# Agent workflow
+export GITHUB_TOKEN=$(creddy get github)
+
+# Clone and work
+git clone https://x-access-token:${GITHUB_TOKEN}@github.com/myorg/api.git
+cd api
+# ... make changes ...
+git commit -m "feat: add new endpoint"
+git push origin feature-branch
+
+# Create PR
+gh pr create --title "Add new endpoint" --body "Implemented by coding-agent"
+```
+
+## Time-Limited Token for One-Off Task
+
+Request a short-lived token for a quick operation:
+
+```bash
+# 5 minute token
+TOKEN=$(creddy get github --ttl 5m --repo myorg/config)
+
+# Quick read
+curl -H "Authorization: Bearer $TOKEN" \
+  https://api.github.com/repos/myorg/config/contents/settings.json
+```
+
+## Agent Requesting Additional Access
+
+An agent that starts with minimal access and requests more as needed:
+
+```bash
+# Initial enrollment (conservative)
+creddy enroll http://creddy:8400 --name helper-bot \
+  --can github:myorg/docs:read
+
+# Later, bot needs to edit docs
+creddy request --can github:myorg/docs
+
+# Admin approves, now bot can write
+creddy get github  # includes write access to docs
+```
+
+## Multiple Repos in One Token
+
+Agent working across several repos:
+
+```bash
+# Enrollment with multiple repos
+creddy enroll http://creddy:8400 --name monorepo-agent \
+  --can github:myorg/frontend \
+  --can github:myorg/backend \
+  --can github:myorg/shared
+
+# Single token covers all repos
+export GITHUB_TOKEN=$(creddy get github)
+
+# Work across repos
+gh api repos/myorg/frontend/pulls
+gh api repos/myorg/backend/pulls
+gh api repos/myorg/shared/pulls
+```
+
+## Org-Wide Access for Admin Bot
+
+A trusted bot with access to all org repos:
+
+```bash
+# Enrollment with wildcard
+creddy enroll http://creddy:8400 --name admin-bot \
+  --can github:myorg/*
+```
+
+```bash
+# Can access any repo in the org
+creddy get github --repo myorg/any-repo
+creddy get github --repo myorg/another-repo
+
+# Or get token for all
+creddy get github
+```
+
+## Script: Auto-Refresh Token
+
+For long-running agents, refresh token before expiry:
+
+```bash
+#!/bin/bash
+# refresh-token.sh
+
+TOKEN_FILE=/tmp/github-token
+REFRESH_MINS=50  # Refresh 10 mins before 1hr expiry
+
+while true; do
+  creddy get github > "$TOKEN_FILE"
+  export GITHUB_TOKEN=$(cat "$TOKEN_FILE")
+  echo "Token refreshed at $(date)"
+  sleep $((REFRESH_MINS * 60))
+done
+```
+
+## GitHub Actions Integration
+
+Use Creddy in GitHub Actions for cross-repo access:
+
+```yaml
+# .github/workflows/deploy.yml
+jobs:
+  deploy:
+    runs-on: self-hosted  # Must reach Creddy server
+    steps:
+      - name: Get deploy token
+        run: |
+          # Agent pre-enrolled with deploy repos access
+          export CREDDY_URL=${{ secrets.CREDDY_URL }}
+          export CREDDY_TOKEN=${{ secrets.CREDDY_AGENT_TOKEN }}
+          echo "GITHUB_TOKEN=$(creddy get github)" >> $GITHUB_ENV
+      
+      - name: Deploy to infra repo
+        run: |
+          gh workflow run deploy.yml --repo myorg/infra
+```
+
+## Separate Read/Write Tokens
+
+When you need different permission levels in the same workflow:
+
+```bash
+# Read token for fetching
+READ_TOKEN=$(creddy get github --read-only)
+
+# Write token only when needed
+WRITE_TOKEN=$(creddy get github)
+
+# Fetch with read token
+git clone https://x-access-token:${READ_TOKEN}@github.com/myorg/repo.git
+
+# Push with write token (only if changes made)
+if [ -n "$(git status --porcelain)" ]; then
+  git remote set-url origin https://x-access-token:${WRITE_TOKEN}@github.com/myorg/repo.git
+  git push
+fi
+```
+
+## Docker Container Agent
+
+Running an agent in Docker with Creddy:
+
+```dockerfile
+FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y curl git
+COPY creddy /usr/local/bin/
+
+# Agent token passed via environment
+ENV CREDDY_URL=http://creddy:8400
+# CREDDY_TOKEN set at runtime
+```
+
+```bash
+docker run -e CREDDY_TOKEN=$AGENT_TOKEN myagent \
+  sh -c 'export GITHUB_TOKEN=$(creddy get github) && git clone ...'
+```
+
+## Kubernetes CronJob
+
+Periodic task with fresh credentials each run:
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: repo-sync
+spec:
+  schedule: "0 * * * *"  # Every hour
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: sync
+            image: myagent:latest
+            env:
+            - name: CREDDY_URL
+              value: "http://creddy.creddy.svc:8400"
+            - name: CREDDY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent-credentials
+                  key: token
+            command:
+            - sh
+            - -c
+            - |
+              export GITHUB_TOKEN=$(creddy get github --ttl 30m)
+              # ... sync logic ...
+```
+
+## Audit Query: Who Accessed What
+
+Review credential usage:
+
+```bash
+# All GitHub tokens issued today
+creddy audit --action token_issued --limit 50
+
+# Tokens issued to a specific agent
+creddy audit --agent-id abc-123
+
+# Export for analysis
+creddy audit --limit 1000 | jq '.[] | {agent: .agent_name, backend: .backend, time: .timestamp}'
+```
+
+---
+## getting-started.mdx
+
+# Getting Started
+
+Get Creddy up and running in minutes.
+
+## Installation
+
+Download the latest release for your platform from [GitHub Releases](https://github.com/getcreddy/creddy/releases).
+
+```bash
+# macOS (Apple Silicon)
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-arm64.tar.gz
+tar -xzf creddy-darwin-arm64.tar.gz
+sudo mv creddy /usr/local/bin/
+
+# macOS (Intel)
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-amd64.tar.gz
+tar -xzf creddy-darwin-amd64.tar.gz
+sudo mv creddy /usr/local/bin/
+
+# Linux (amd64)
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-amd64.tar.gz
+tar -xzf creddy-linux-amd64.tar.gz
+sudo mv creddy /usr/local/bin/
+
+# Linux (arm64)
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-arm64.tar.gz
+tar -xzf creddy-linux-arm64.tar.gz
+sudo mv creddy /usr/local/bin/
+```
+
+### From Source
+
+If you have Go installed:
+
+```bash
+go install github.com/getcreddy/creddy@latest
+```
+
+## Starting the Server
+
+```bash
+creddy server
+```
+
+By default, Creddy runs on `http://localhost:8080`.
+
+### Configuration Options
+
+```bash
+# Custom port
+creddy server --port 9000
+
+# Custom data directory
+creddy server --data-dir /var/lib/creddy
+```
+
+## Your First Credential
+
+Once the server is running, request a credential:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/credentials \
+  -H "Content-Type: application/json" \
+  -d '{
+    "backend": "github",
+    "ttl": "1h",
+    "scopes": ["repo:read"]
+  }'
+```
+
+Response:
+
+```json
+{
+  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
+  "expires_at": "2024-01-15T16:00:00Z",
+  "backend": "github",
+  "scopes": ["repo:read"]
+}
+```
+
+## Configuring Backends
+
+Backends are the external services Creddy can issue credentials for. Configure them in `~/.creddy/config.yaml`:
+
+```yaml
+backends:
+  github:
+    type: github
+    token: ghp_xxxxxxxxxxxx
+    
+  aws:
+    type: aws
+    access_key_id: AKIA...
+    secret_access_key: ...
+    region: us-east-1
+```
+
+See [Concepts](/docs/concepts) for more on how backends work.
+
+## Next Steps
+
+- Learn about [Concepts](/docs/concepts) like backends, scopes, and TTLs
+- Explore the [API Reference](/docs/api) for all endpoints
+- Check out the [CLI Reference](/docs/cli) for command-line usage
+
+---
+## index.mdx
+
+# Creddy
+
+**Ephemeral credentials for AI agents.**
+
+Creddy provides short-lived, scoped credentials for AI agents and automated systems. Instead of sharing long-lived API keys or passwords, Creddy generates temporary credentials that automatically expire—reducing risk and improving auditability.
+
+## Why Creddy?
+
+Traditional credential management wasn't designed for the age of AI agents. When you give an agent access to your systems, you typically have two bad options:
+
+1. **Share your credentials** — The agent now has your full access, forever
+2. **Create long-lived API keys** — Better, but still risky if compromised
+
+Creddy offers a third way: **ephemeral, scoped credentials** that exist only as long as needed.
+
+## Key Features
+
+- 🔐 **Ephemeral by default** — Credentials expire automatically (minutes to hours, not months)
+- 🎯 **Scoped access** — Grant only the permissions needed for the task
+- 📊 **Auditable** — Track every credential issued and used
+- 🤖 **Built for agents** — Simple API designed for programmatic access
+- 🔑 **Signed tokens** — Cryptographically signed JWTs for verification
+
+## How It Works
+
+```
+┌─────────────┐     1. Request credential      ┌─────────────┐
+│   Agent     │ ─────────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────────── │   Server    │
+└─────────────┘     2. Short-lived token       └─────────────┘
+       │
+       │ 3. Use token
+       ▼
+┌─────────────┐
+│  External   │
+│  Service    │
+└─────────────┘
+```
+
+1. Agent requests a credential for a specific backend (e.g., "github", "aws")
+2. Creddy issues a signed, time-limited token
+3. Agent uses the token to authenticate with the external service
+4. Token expires automatically — no cleanup needed
+
+## Quick Start
+
+```bash
+# Download the latest release (macOS Apple Silicon)
+curl -sL $(curl -s https://api.github.com/repos/getcreddy/creddy/releases/latest | grep "browser_download_url.*darwin-arm64.tar.gz" | cut -d '"' -f 4) | tar -xz
+sudo mv creddy /usr/local/bin/
+
+# Start the server
+creddy server
+
+# Request a credential (from your agent)
+curl -X POST http://localhost:8080/api/v1/credentials \
+  -H "Content-Type: application/json" \
+  -d '{"backend": "github", "ttl": "1h"}'
+```
+
+See [Getting Started](/docs/getting-started) for other platforms.
+
+Ready to get started? Head to [Getting Started](/docs/getting-started).
+
+---
+## integrations/anthropic.mdx
+
+# Anthropic Integration
+
+Creddy's Anthropic integration creates truly ephemeral API keys. Unlike static keys, these are created on-demand and automatically deleted when they expire or when an agent is unenrolled.
+
+## How It Works
+
+Creddy uses Anthropic's Admin API to manage API keys programmatically:
+
+1. Agent requests `creddy get anthropic`
+2. Creddy creates a new API key via Admin API
+3. Returns real `sk-ant-...` key to the agent
+4. On TTL expiry or unenroll → Creddy deletes the key from Anthropic
+
+```
+┌─────────────┐    creddy get anthropic    ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘    sk-ant-xxx (1h TTL)     └──────┬──────┘
+       │                                          │
+       │ claude / API calls                       │ Admin API
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│  Anthropic  │                            │  Anthropic  │
+│     API     │                            │  Admin API  │
+└─────────────┘                            └─────────────┘
+```
+
+The key difference from GitHub: **the agent gets a real API key** that works with any client (Claude Code, SDKs, curl), but Creddy automatically cleans it up.
+
+## Requirements
+
+- **Anthropic Admin API access** — Requires Scale or Enterprise plan
+- **Admin API key** — Generated from your Anthropic console
+
+## Server Setup
+
+### 1. Get Admin API Key
+
+1. Log into [console.anthropic.com](https://console.anthropic.com)
+2. Go to Settings → Admin API
+3. Generate an Admin API key
+4. Save it securely — it won't be shown again
+
+### 2. Configure Creddy
+
+```bash
+creddy backend add anthropic \
+  --admin-key "sk-admin-..."
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "anthropic",
+    "name": "anthropic",
+    "config": {
+      "admin_key": "sk-admin-..."
+    }
+  }'
+```
+
+## Agent Enrollment
+
+Agents request Anthropic access during enrollment:
+
+```bash
+creddy enroll --server http://creddy:8400 --name my-agent \
+  --can anthropic
+```
+
+Currently, Anthropic scopes are simple — an agent either has access or doesn't. Future versions may support model-level scoping.
+
+## Requesting Keys
+
+Once enrolled and approved:
+
+```bash
+# Get an API key (default 10 min TTL)
+creddy get anthropic
+
+# Get a key with custom TTL
+creddy get anthropic --ttl 1h
+
+# Use it immediately
+export ANTHROPIC_API_KEY=$(creddy get anthropic)
+claude "Hello, world"
+```
+
+### Using with Claude Code
+
+```bash
+# Set the key
+export ANTHROPIC_API_KEY=$(creddy get anthropic --ttl 1h)
+
+# Claude Code uses it automatically
+claude code "implement a fibonacci function"
+```
+
+### Using with Python SDK
+
+```python
+
+# Key from environment (set via creddy get)
+client = anthropic.Anthropic()
+
+message = client.messages.create(
+    model="claude-3-sonnet-20240229",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+## Key Lifecycle
+
+### TTL Expiry
+
+Keys are automatically deleted when their TTL expires:
+
+```bash
+# Request a 30-minute key
+creddy get anthropic --ttl 30m
+
+# After 30 minutes, Creddy's reaper:
+# 1. Calls Anthropic Admin API to delete the key
+# 2. Removes it from the active credentials database
+```
+
+The agent cannot use the key after expiry — it's deleted from Anthropic, not just Creddy.
+
+### Agent Unenroll
+
+When an agent is unenrolled, all their active keys are revoked:
+
+```bash
+# Admin unenrolls an agent
+creddy unenroll my-agent
+
+# Creddy:
+# 1. Finds all active credentials for my-agent
+# 2. Deletes each Anthropic key via Admin API
+# 3. Removes the agent
+```
+
+This provides immediate revocation — no waiting for TTL expiry.
+
+## Audit Trail
+
+All key creation is logged:
+
+```bash
+creddy audit --limit 10
+```
+
+Shows who requested keys, when, and which agent.
+
+## Security Considerations
+
+### Admin Key Security
+
+The Admin API key stored in Creddy can create and delete any API key in your organization. Protect it:
+
+- Run Creddy on a trusted server (Tailscale, VPN, localhost)
+- Use `creddy install` with security hardening
+- Rotate the admin key periodically
+
+### Key Visibility
+
+Unlike GitHub tokens (which are scoped), Anthropic API keys have full access to your API quota. Consider:
+
+- Short TTLs for untrusted agents
+- Monitoring API usage per key name (`creddy-`)
+- Using separate Anthropic organizations for different trust levels
+
+## Comparison with Static Keys
+
+| Aspect | Static Key | Creddy Ephemeral |
+|--------|-----------|------------------|
+| Lifetime | Forever | Minutes to hours |
+| Revocation | Manual | Automatic on TTL/unenroll |
+| Audit | None | Full trail |
+| Agent compromise | Permanent exposure | Limited window |
+| Key rotation | Manual | Automatic |
+
+## Troubleshooting
+
+### "Admin API access required"
+
+You need a Scale or Enterprise plan for Admin API access. Contact Anthropic sales.
+
+### "Failed to create API key"
+
+Check that your admin key is valid and has permission to create API keys.
+
+### Key not working
+
+Verify the key was created successfully:
+
+```bash
+# Check active credentials
+creddy list
+```
+
+If the key shows as active but doesn't work, the Admin API endpoint may have changed. Check Anthropic's documentation.
+
+---
+## integrations/doppler.mdx
+
+# Doppler Integration
+
+Creddy's Doppler integration creates scoped service tokens that give agents access to specific project secrets. Tokens are ephemeral — created on-demand and automatically revoked when they expire or when an agent is unenrolled.
+
+## How It Works
+
+Creddy uses Doppler's API to manage service tokens:
+
+1. Agent requests `creddy get doppler --project myapp --config prd`
+2. Creddy creates a scoped service token via Doppler API
+3. Returns the token to the agent
+4. On TTL expiry or unenroll → Creddy revokes the token
+
+```
+┌─────────────┐  creddy get doppler    ┌─────────────┐
+│   Agent     │ ─────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────── │   Server    │
+└─────────────┘  dp.st.xxx (1h TTL)    └──────┬──────┘
+       │                                      │
+       │ doppler secrets                      │ Doppler API
+       ▼                                      ▼
+┌─────────────┐                        ┌─────────────┐
+│   Doppler   │                        │   Doppler   │
+│   Secrets   │                        │     API     │
+└─────────────┘                        └─────────────┘
+```
+
+Unlike static service tokens that live forever, Creddy tokens are automatically cleaned up.
+
+## Requirements
+
+- **Doppler account** — Any plan
+- **Workplace token** — With permission to create service tokens
+- **Projects configured** — The projects agents will access
+
+## Server Setup
+
+### 1. Get a Doppler Token
+
+You need a token that can manage service tokens. Options:
+
+**Option A: Personal Token (simpler)**
+1. Go to [dashboard.doppler.com](https://dashboard.doppler.com)
+2. Click your avatar → Tokens
+3. Generate a Personal Token
+4. Save it securely
+
+**Option B: Service Account (recommended for production)**
+1. Settings → Service Accounts
+2. Create a service account for Creddy
+3. Grant it "Service Token Manager" role on relevant projects
+4. Generate a token for the service account
+
+### 2. Configure Creddy
+
+```bash
+creddy backend add doppler \
+  --token "dp.pt.xxxx"
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "doppler",
+    "name": "doppler",
+    "config": {
+      "token": "dp.pt.xxxx"
+    }
+  }'
+```
+
+## Agent Enrollment
+
+Agents request access to specific projects and configs during enrollment:
+
+```bash
+# Access to production config
+creddy enroll --server http://creddy:8400 --name deploy-bot \
+  --can doppler:myapp/prd
+
+# Access to multiple configs
+creddy enroll --server http://creddy:8400 --name dev-bot \
+  --can doppler:myapp/dev \
+  --can doppler:myapp/stg
+
+# Read-only access
+creddy enroll --server http://creddy:8400 --name readonly-bot \
+  --can doppler:myapp/prd:read
+```
+
+### Scope Format
+
+```
+doppler:project/config[:permission]
+```
+
+| Scope | Access |
+|-------|--------|
+| `doppler:myapp/prd` | Read/write to myapp production |
+| `doppler:myapp/prd:read` | Read-only to myapp production |
+| `doppler:myapp/*` | All configs in myapp project |
+| `doppler:*` | All projects (use sparingly) |
+
+## Requesting Tokens
+
+Once enrolled and approved:
+
+```bash
+# Get a token for a specific config
+creddy get doppler --project myapp --config prd
+
+# With custom TTL
+creddy get doppler --project myapp --config prd --ttl 2h
+
+# Read-only token
+creddy get doppler --project myapp --config prd --read-only
+```
+
+### Using with Doppler CLI
+
+```bash
+# Set the token
+export DOPPLER_TOKEN=$(creddy get doppler --project myapp --config prd)
+
+# Fetch secrets
+doppler secrets
+
+# Run with secrets injected
+doppler run -- ./my-app
+```
+
+### Using with Direct API
+
+```bash
+# Get token
+TOKEN=$(creddy get doppler --project myapp --config prd)
+
+# Fetch secrets via API
+curl -s "https://api.doppler.com/v3/configs/config/secrets/download?format=json" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Using in Scripts
+
+```bash
+#!/bin/bash
+# deploy.sh - Deployment script with ephemeral secrets access
+
+# Get a short-lived token for this deployment
+export DOPPLER_TOKEN=$(creddy get doppler --project myapp --config prd --ttl 10m)
+
+# Deploy with secrets
+doppler run -- kubectl apply -f deployment.yaml
+
+# Token auto-revokes after TTL even if script crashes
+```
+
+## Token Lifecycle
+
+### TTL Expiry
+
+Tokens are automatically revoked when their TTL expires:
+
+```bash
+# Request a 30-minute token
+creddy get doppler --project myapp --config prd --ttl 30m
+
+# After 30 minutes, Creddy's reaper:
+# 1. Calls Doppler API to revoke the token
+# 2. Removes it from the active credentials database
+```
+
+The token stops working immediately — it's revoked at Doppler, not just in Creddy.
+
+### Agent Unenroll
+
+When an agent is unenrolled, all their active tokens are revoked:
+
+```bash
+# Admin unenrolls an agent
+creddy unenroll deploy-bot
+
+# Creddy:
+# 1. Finds all active Doppler tokens for deploy-bot
+# 2. Revokes each token via Doppler API
+# 3. Removes the agent
+```
+
+## Multi-Project Access
+
+Agents can have access to multiple projects:
+
+```bash
+# Enrollment with multiple projects
+creddy enroll --server http://creddy:8400 --name infra-bot \
+  --can doppler:frontend/prd \
+  --can doppler:backend/prd \
+  --can doppler:shared-secrets/prd:read
+```
+
+Request tokens for each project separately:
+
+```bash
+FRONTEND_TOKEN=$(creddy get doppler --project frontend --config prd)
+BACKEND_TOKEN=$(creddy get doppler --project backend --config prd)
+```
+
+## Example: CI/CD Pipeline
+
+```yaml
+# .github/workflows/deploy.yml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get Doppler token
+        run: |
+          export DOPPLER_TOKEN=$(creddy get doppler \
+            --server ${{ secrets.CREDDY_URL }} \
+            --project myapp \
+            --config prd \
+            --ttl 15m)
+          echo "DOPPLER_TOKEN=$DOPPLER_TOKEN" >> $GITHUB_ENV
+      
+      - name: Deploy
+        run: |
+          doppler run -- ./deploy.sh
+```
+
+## Example: Kubernetes Sidecar
+
+```yaml
+# Pod with Creddy sidecar for secret refresh
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+      env:
+        - name: DOPPLER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: doppler-token
+              key: token
+    
+    - name: creddy-sidecar
+      image: creddy:latest
+      command:
+        - /bin/sh
+        - -c
+        - |
+          while true; do
+            TOKEN=$(creddy get doppler --project myapp --config prd --ttl 1h)
+            kubectl create secret generic doppler-token \
+              --from-literal=token=$TOKEN \
+              --dry-run=client -o yaml | kubectl apply -f -
+            sleep 3000  # Refresh every 50 min
+          done
+```
+
+## Audit Trail
+
+All token operations are logged:
+
+```bash
+creddy audit --limit 10
+```
+
+Shows which agent requested tokens for which project/config, when, and the token's TTL.
+
+## Security Considerations
+
+### Token Hierarchy
+
+Doppler has a token hierarchy:
+- **Personal tokens** — tied to a user, broad access
+- **Service account tokens** — scoped to roles, recommended for Creddy
+- **Service tokens** — what Creddy creates, scoped to single config
+
+Creddy creates service tokens (most limited), using your personal/SA token (more privileged).
+
+### Principle of Least Privilege
+
+- Grant agents only the configs they need
+- Use `:read` suffix when write isn't required
+- Prefer specific project/config over wildcards
+- Use short TTLs for sensitive configs
+
+### Audit Access
+
+Doppler logs all secret access. Combined with Creddy's audit:
+- **Creddy**: Who requested tokens, when
+- **Doppler**: What secrets were accessed
+
+## Comparison with Static Service Tokens
+
+| Aspect | Static Token | Creddy Ephemeral |
+|--------|-------------|------------------|
+| Lifetime | Forever | Minutes to hours |
+| Scope | Single config | Single config |
+| Revocation | Manual | Automatic on TTL/unenroll |
+| Audit | Doppler only | Creddy + Doppler |
+| Agent compromise | Permanent exposure | Limited window |
+| Token rotation | Manual | Automatic |
+
+## Troubleshooting
+
+### "Permission denied creating service token"
+
+Your Creddy token doesn't have permission to create service tokens in that project. Check:
+- Personal token: You need access to the project
+- Service account: Needs "Service Token Manager" role
+
+### "Project not found"
+
+Verify the project name matches exactly (case-sensitive):
+
+```bash
+doppler projects
+```
+
+### "Config not found"
+
+Verify the config exists:
+
+```bash
+doppler configs --project myapp
+```
+
+### Token not working
+
+If token shows as active in Creddy but doesn't work:
+
+```bash
+# Check active credentials
+creddy list
+
+# Test the token directly
+curl -s "https://api.doppler.com/v3/me" \
+  -H "Authorization: Bearer $DOPPLER_TOKEN"
+```
+
+---
+## integrations/github.mdx
+
+# GitHub Integration
+
+Creddy's GitHub integration provides scoped, ephemeral installation tokens for your AI agents. Instead of sharing personal access tokens, agents request short-lived tokens with access to only the repositories they need.
+
+## How It Works
+
+Creddy uses a [GitHub App](https://docs.github.com/en/apps) to generate installation tokens. When an agent requests a GitHub credential:
+
+1. Agent authenticates with Creddy using its agent token
+2. Creddy validates the agent's scopes (which repos it can access)
+3. Creddy generates a GitHub App installation token scoped to those repos
+4. Token is returned to the agent (expires in 1 hour max)
+
+```
+┌─────────────┐     creddy get github      ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘     ghs_xxxxx (1h TTL)     └──────┬──────┘
+       │                                          │
+       │ git clone / gh api                       │ GitHub App
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│   GitHub    │ ◀────────────────────────── │  GitHub App │
+│   (repos)   │                            └─────────────┘
+└─────────────┘
+```
+
+## Key Concepts
+
+Before setup, understand these key points:
+
+- **One GitHub App** — Create a single GitHub App that Creddy uses to generate tokens
+- **Install per org/user** — Install the app into each GitHub org or user account where agents need access
+- **Max permissions on app** — The GitHub App needs the *maximum* permissions any agent might request. Creddy can only reduce permissions, never expand beyond what the app has.
+- **No webhooks needed** — Creddy only generates tokens; it doesn't receive events from GitHub
+
+## Server Setup
+
+### 1. Create a GitHub App
+
+1. Go to [github.com/settings/apps/new](https://github.com/settings/apps/new)
+
+2. **Basic info:**
+   - **Name**: `creddy-yourcompany` (must be globally unique)
+   - **Homepage URL**: Your Creddy server URL (or any URL)
+
+3. **Webhook:**
+   - ❌ **Uncheck "Active"** — Creddy doesn't need webhooks
+
+4. **Permissions** — Set the *maximum* any agent might need:
+   
+   | Permission | Level | Use Case |
+   |------------|-------|----------|
+   | Contents | Read & Write | Clone, push, read files |
+   | Metadata | Read | Required for all operations |
+   | Pull requests | Read & Write | Create/manage PRs |
+   | Issues | Read & Write | Create/manage issues |
+   | Actions | Read | Check workflow status |
+   | Commit statuses | Read & Write | Set status checks |
+
+   Start with Contents + Metadata. Add more as needed.
+
+5. **Where can this app be installed?**
+   - "Only on this account" for private use
+   - "Any account" if agents need access across orgs
+
+6. **Create the app** and note the **App ID** (shown at top of app settings)
+
+7. **Generate a private key:**
+   - Scroll to "Private keys" section
+   - Click "Generate a private key"
+   - Downloads a `.pem` file — keep this secure!
+
+### 2. Install the App
+
+1. From your app's settings page, click **"Install App"** in the sidebar
+2. Choose the org or user account to install on
+3. Select **"All repositories"** or specific repos
+4. Click **Install**
+5. Note the **Installation ID** from the URL:
+   ```
+   https://github.com/settings/installations/12345678
+                                              ^^^^^^^^
+                                              This is your installation ID
+   ```
+
+Repeat for each org where agents need access.
+
+### 3. Configure Creddy
+
+```bash
+# Add the GitHub backend
+creddy backend add github \
+  --app-id 123456 \
+  --installation-id 12345678 \
+  --private-key /path/to/app.pem
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "github",
+    "name": "github",
+    "config": {
+      "app_id": 123456,
+      "installation_id": 12345678,
+      "private_key_pem": "-----BEGIN RSA PRIVATE KEY-----\n..."
+    }
+  }'
+```
+
+## Agent Enrollment
+
+Agents request access to specific repositories during enrollment:
+
+```bash
+# Agent requests enrollment with repo access
+creddy enroll http://creddy-server:8400 --name my-agent \
+  --can github:owner/repo1 \
+  --can github:owner/repo2
+```
+
+### Scope Format
+
+| Scope | Description |
+|-------|-------------|
+| `github:owner/repo` | Access to a specific repository (read/write) |
+| `github:owner/repo:read` | Read-only access to a repository |
+| `github:owner/repo:write` | Explicit read/write access |
+| `github:owner/*` | Access to all repos under an owner |
+| `github:*` | Access to all repos the app can see |
+
+### Read-Only Scopes
+
+Suffix `:read` to restrict an agent to read-only access:
+
+```bash
+creddy enroll http://creddy-server:8400 --name ci-bot \
+  --can github:myorg/frontend:read \
+  --can github:myorg/backend:read
+```
+
+This agent can only request read-only tokens—even if it tries `--read-only=false`, Creddy will enforce the ceiling.
+
+## Requesting Tokens
+
+Once enrolled and approved, agents can request tokens:
+
+```bash
+# Get a token for all your repos
+creddy get github
+
+# Get a read-only token
+creddy get github --read-only
+
+# Narrow to specific repos (subset of what you're allowed)
+creddy get github --repo owner/repo1
+
+# Custom TTL (max 1 hour)
+creddy get github --ttl 30m
+```
+
+### Using the Token
+
+The returned token works with any GitHub API client:
+
+```bash
+# Set the token
+export GITHUB_TOKEN=$(creddy get github)
+
+# Use with git
+git clone https://x-access-token:${GITHUB_TOKEN}@github.com/owner/repo.git
+
+# Use with gh CLI
+gh api repos/owner/repo
+
+# Use with curl
+curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://api.github.com/repos/owner/repo
+```
+
+### Verifying Token Scopes
+
+To confirm tokens are properly scoped to specific repos:
+
+```bash
+# Get a scoped token
+export GH_TOKEN=$(creddy get github)
+
+# ✅ Should work - access your scoped repo
+gh api repos/owner/allowed-repo/issues
+
+# ❌ Should fail (404) - access a different private repo
+gh api repos/owner/other-repo/issues
+
+# ✅ Should work - create an issue in allowed repo
+gh issue create --repo owner/allowed-repo --title "Test" --body "Token scoping works!"
+
+# ❌ Should fail - create issue in different repo
+gh issue create --repo owner/other-repo --title "Test" --body "This should fail"
+```
+
+If the token is correctly scoped, you'll get a 404 "Not Found" when accessing repos outside your agent's permissions.
+
+## Adding More Repos Later
+
+Agents can request additional repository access after enrollment:
+
+```bash
+# Agent requests more access
+creddy request --can github:owner/repo3
+
+# On the server, admin sees the request
+creddy pending
+# ID          TYPE        NAME        SCOPES
+# abc-123     amendment   my-agent    ["github:owner/repo3"]
+
+# Admin approves
+creddy approve abc-123
+```
+
+Scopes are merged—the agent now has access to repo1, repo2, and repo3.
+
+## Multi-Organization Setup
+
+GitHub App installation tokens are scoped to a single installation (typically one org or user account). If your agents need access to repos across multiple orgs:
+
+1. Install the GitHub App on each org
+2. Configure multiple backends in Creddy:
+   ```bash
+   creddy backend add github-myorg --app-id 123 --installation-id 111 --private-key app.pem
+   creddy backend add github-partner --app-id 123 --installation-id 222 --private-key app.pem
+   ```
+3. Agents request from the appropriate backend:
+   ```bash
+   creddy get github-myorg
+   creddy get github-partner
+   ```
+
+## Token Permissions
+
+The token inherits the permissions configured on your GitHub App, reduced by any scope restrictions:
+
+| App Permission | Agent Scope | Token Gets |
+|----------------|-------------|------------|
+| Contents: Write | `github:owner/repo` | Contents: Write |
+| Contents: Write | `github:owner/repo:read` | Contents: Read |
+| Contents: Read | `github:owner/repo` | Contents: Read |
+
+You cannot grant more permissions than the app has—Creddy only reduces, never expands.
+
+## Audit Trail
+
+Every token issued is logged:
+
+```bash
+creddy audit --limit 10
+```
+
+Shows who requested what, when, and from where—useful for security reviews and compliance.
+
+---
+## reference/api.mdx
+
+# API Reference
+
+Creddy exposes a REST API for credential management.
+
+## Base URL
+
+```
+http://localhost:8080/api/v1
+```
+
+## Authentication
+
+All endpoints (except enrollment initiation and health) require request signing. See [Client Authentication](/docs/authentication) for details.
+
+```
+X-Creddy-Client: cli_xyz789
+X-Creddy-Timestamp: 1708531200
+X-Creddy-Signature: base64(...)
+```
+
+----|------|----------|-------------|
+| `public_key` | string | Yes | Base64-encoded Ed25519 public key |
+| `name` | string | Yes | Human-readable client name |
+| `metadata` | object | No | Client metadata (hostname, user, OS) |
+
+#### Example Request
+
+```bash
+curl -X POST http://localhost:8080/api/v1/enrollments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "public_key": "MCowBQYDK2VwAyEA...",
+    "name": "my-laptop",
+    "metadata": {
+      "hostname": "marcbook.local",
+      "username": "marc",
+      "os": "darwin",
+      "arch": "arm64"
+    }
+  }'
+```
+
+#### Response
+
+```json
+{
+  "enrollment_id": "enr_abc123",
+  "status": "pending",
+  "expires_at": "2024-01-15T16:05:00Z",
+  "poll_interval_ms": 2000
+}
+```
+
+---
+
+### Poll Enrollment Status
+
+Check if an enrollment has been approved.
+
+```
+GET /api/v1/enrollments/{enrollment_id}/status
+```
+
+#### Response (Pending)
+
+```json
+{
+  "status": "pending",
+  "expires_at": "2024-01-15T16:05:00Z"
+}
+```
+
+#### Response (Approved)
+
+```json
+{
+  "status": "approved",
+  "client_id": "cli_xyz789",
+  "server_public_key": "MCowBQYDK2VwAyEA..."
+}
+```
+
+#### Response (Denied)
+
+```json
+{
+  "status": "denied",
+  "reason": "Unknown device"
+}
+```
+
+---
+
+### List Pending Enrollments (Admin)
+
+```
+GET /api/v1/admin/enrollments?status=pending
+```
+
+#### Response
+
+```json
+{
+  "enrollments": [
+    {
+      "enrollment_id": "enr_abc123",
+      "name": "my-laptop",
+      "public_key_fingerprint": "SHA256:xK3E8f...",
+      "metadata": {
+        "hostname": "marcbook.local",
+        "username": "marc"
+      },
+      "requested_at": "2024-01-15T16:00:00Z",
+      "expires_at": "2024-01-15T16:05:00Z",
+      "ip_address": "192.168.1.50"
+    }
+  ]
+}
+```
+
+---
+
+### Approve Enrollment (Admin)
+
+```
+POST /api/v1/admin/enrollments/{enrollment_id}/approve
+```
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `role` | string | No | Client role: `operator` (default) or `admin` |
+| `note` | string | No | Admin note |
+
+#### Response
+
+```json
+{
+  "client_id": "cli_xyz789",
+  "status": "approved"
+}
+```
+
+---
+
+### Deny Enrollment (Admin)
+
+```
+POST /api/v1/admin/enrollments/{enrollment_id}/deny
+```
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `reason` | string | No | Reason for denial |
+
+---
+
+## Credential Endpoints
+
+### Issue Credential
+
+Issue a new ephemeral credential.
+
+```
+POST /api/v1/credentials
+```
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `backend` | string | Yes | Backend identifier |
+| `ttl` | string | No | Time to live (e.g., "1h", "30m") |
+| `scopes` | string[] | No | Requested scopes |
+| `metadata` | object | No | Custom metadata for audit |
+
+#### Example Request
+
+```bash
+curl -X POST http://localhost:8080/api/v1/credentials \
+  -H "Content-Type: application/json" \
+  -H "X-Creddy-Client: cli_xyz789" \
+  -H "X-Creddy-Timestamp: 1708531200" \
+  -H "X-Creddy-Signature: ..." \
+  -d '{
+    "backend": "github",
+    "ttl": "1h",
+    "scopes": ["repo:read", "issues:write"]
+  }'
+```
+
+#### Response
+
+```json
+{
+  "id": "cred_abc123",
+  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
+  "backend": "github",
+  "scopes": ["repo:read", "issues:write"],
+  "expires_at": "2024-01-15T16:00:00Z",
+  "created_at": "2024-01-15T15:00:00Z"
+}
+```
+
+---
+
+### Get Credential
+
+Retrieve credential metadata (not the token itself).
+
+```
+GET /api/v1/credentials/{id}
+```
+
+#### Response
+
+```json
+{
+  "id": "cred_abc123",
+  "backend": "github",
+  "scopes": ["repo:read"],
+  "expires_at": "2024-01-15T16:00:00Z",
+  "created_at": "2024-01-15T15:00:00Z",
+  "revoked": false
+}
+```
+
+---
+
+### Revoke Credential
+
+Revoke a credential before expiration.
+
+```
+DELETE /api/v1/credentials/{id}
+```
+
+#### Response
+
+```json
+{
+  "id": "cred_abc123",
+  "revoked": true,
+  "revoked_at": "2024-01-15T15:30:00Z"
+}
+```
+
+---
+
+## Client Management (Admin)
+
+### List Clients
+
+```
+GET /api/v1/admin/clients
+```
+
+#### Response
+
+```json
+{
+  "clients": [
+    {
+      "client_id": "cli_xyz789",
+      "name": "my-laptop",
+      "role": "operator",
+      "public_key_fingerprint": "SHA256:xK3E8f...",
+      "created_at": "2024-01-15T15:00:00Z",
+      "last_seen": "2024-01-15T16:30:00Z",
+      "status": "active"
+    }
+  ]
+}
+```
+
+---
+
+### Revoke Client
+
+```
+DELETE /api/v1/admin/clients/{client_id}
+```
+
+#### Response
+
+```json
+{
+  "client_id": "cli_xyz789",
+  "status": "revoked",
+  "revoked_at": "2024-01-15T16:00:00Z"
+}
+```
+
+---
+
+## Backend Endpoints
+
+### List Backends
+
+```
+GET /api/v1/backends
+```
+
+#### Response
+
+```json
+{
+  "backends": [
+    {
+      "id": "github",
+      "type": "github",
+      "default_ttl": "1h",
+      "max_ttl": "24h",
+      "allowed_scopes": ["repo:*", "issues:*"]
+    }
+  ]
+}
+```
+
+---
+
+### Get Backend
+
+```
+GET /api/v1/backends/{id}
+```
+
+---
+
+## Other Endpoints
+
+### Health Check
+
+```
+GET /health
+```
+
+No authentication required.
+
+#### Response
+
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0"
+}
+```
+
+---
+
+### Audit Log
+
+```
+GET /api/v1/audit
+```
+
+#### Query Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `backend` | string | Filter by backend |
+| `client_id` | string | Filter by client |
+| `since` | string | Start time (ISO 8601 or duration) |
+| `until` | string | End time |
+| `limit` | int | Max results (default 100) |
+
+---
+
+## Error Responses
+
+All errors follow this format:
+
+```json
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "Backend 'unknown' not found"
+  }
+}
+```
+
+### Error Codes
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `invalid_request` | 400 | Invalid request body or parameters |
+| `unauthorized` | 401 | Missing or invalid authentication |
+| `forbidden` | 403 | Insufficient permissions |
+| `not_found` | 404 | Resource not found |
+| `enrollment_expired` | 410 | Enrollment request has expired |
+| `enrollment_denied` | 403 | Enrollment was denied |
+| `client_revoked` | 403 | Client has been revoked |
+| `internal_error` | 500 | Server error |
+
+---
+## reference/cli.mdx
+
+# CLI Reference
+
+Creddy command-line interface.
+
+## Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--config` | Path to config file |
+| `--server` | Server URL |
+| `-v, --verbose` | Verbose output |
+
+---|---------|-------------|
+| `--name` | hostname | Client name |
+| `--server` | | Server URL (required) |
+| `--admin-token` | | Bootstrap admin token (first admin only) |
+| `--timeout` | `5m` | Enrollment timeout |
+
+#### Examples
+
+```bash
+# Standard enrollment (requires admin approval)
+creddy init --name my-laptop --server https://creddy.example.com
+
+# Bootstrap first admin with token
+creddy init --name admin-laptop --server https://creddy.example.com \
+  --admin-token ctk_XXXXX
+```
+
+---
+
+### `creddy get`
+
+Request a credential from a backend.
+
+```bash
+creddy get  [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--ttl` | Backend default | Time to live |
+| `--scope` | | Scopes (repeatable) |
+| `-o, --output` | `text` | Output format (text, json, env) |
+
+#### Examples
+
+```bash
+# Basic usage
+creddy get github
+
+# With TTL and scopes
+creddy get github --ttl 30m --scope repo:read --scope issues:write
+
+# Output as environment variables
+creddy get aws --output env
+export $(creddy get aws -o env)
+```
+
+---
+
+### `creddy backends`
+
+List available backends.
+
+```bash
+creddy backends [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `-o, --output` | Output format (text, json) |
+
+---
+
+### `creddy rotate-key`
+
+Rotate the client's keypair.
+
+```bash
+creddy rotate-key [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--grace-period` | `24h` | How long to accept old key |
+
+---
+
+### `creddy status`
+
+Show client status and server connection.
+
+```bash
+creddy status
+```
+
+#### Example Output
+
+```
+Client: my-laptop (cli_xyz789)
+Server: https://creddy.example.com
+Status: connected
+Role:   operator
+
+Fingerprint: SHA256:xK3E8f...
+Last sync:   2024-01-15 16:30:00
+```
+
+---
+
+## Admin Commands
+
+### `creddy admin enrollments`
+
+List pending enrollment requests.
+
+```bash
+creddy admin enrollments [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--status` | Filter by status (pending, approved, denied) |
+| `-o, --output` | Output format (text, json) |
+
+#### Example Output
+
+```
+ID            NAME        USER    HOST              IP              EXPIRES
+enr_abc123    my-laptop   marc    marcbook.local    192.168.1.50    4:32
+enr_def456    ci-runner   root    ci-node-01        10.0.0.50       2:15
+```
+
+---
+
+### `creddy admin approve`
+
+Approve an enrollment request.
+
+```bash
+creddy admin approve  [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--role` | `operator` | Client role (operator, admin) |
+| `--note` | | Admin note |
+
+#### Example
+
+```bash
+creddy admin approve enr_abc123 --role admin --note "Marc's laptop"
+```
+
+---
+
+### `creddy admin deny`
+
+Deny an enrollment request.
+
+```bash
+creddy admin deny  [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--reason` | Reason for denial |
+
+---
+
+### `creddy admin clients`
+
+List registered clients.
+
+```bash
+creddy admin clients [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--status` | Filter by status (active, revoked) |
+| `-o, --output` | Output format (text, json) |
+
+#### Example Output
+
+```
+ID            NAME        ROLE      LAST SEEN           STATUS
+cli_xyz789    my-laptop   admin     2024-01-15 16:30    active
+cli_abc123    ci-runner   operator  2024-01-15 14:00    active
+```
+
+---
+
+### `creddy admin revoke`
+
+Revoke a client's access.
+
+```bash
+creddy admin revoke  [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--reason` | Reason for revocation |
+
+---
+
+## Server Commands
+
+### `creddy server`
+
+Start the Creddy server.
+
+```bash
+creddy server [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port` | `8080` | Server port |
+| `--host` | `0.0.0.0` | Host to bind |
+| `--data-dir` | `~/.creddy` | Data directory |
+
+---
+
+### `creddy backend add`
+
+Add a backend to the server.
+
+```bash
+creddy backend add  --type  [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--type` | Backend type (github, aws, generic) |
+| `--config` | Path to config file |
+
+#### Example
+
+```bash
+creddy backend add github --type github \
+  --app-id 12345 \
+  --private-key ./github-app.pem
+```
+
+---
+
+### `creddy keys`
+
+Manage server signing keys.
+
+```bash
+creddy keys 
+```
+
+#### Subcommands
+
+- `creddy keys list` — List all signing keys
+- `creddy keys rotate` — Generate a new signing key
+- `creddy keys revoke ` — Revoke a signing key
+- `creddy keys export ` — Export public key
+
+---
+
+### `creddy audit`
+
+Query the audit log.
+
+```bash
+creddy audit [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--backend` | | Filter by backend |
+| `--client` | | Filter by client |
+| `--since` | `24h` | Start time |
+| `--until` | | End time |
+| `--limit` | `100` | Max results |
+| `-o, --output` | `text` | Output format |
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CREDDY_SERVER` | Server URL |
+| `CREDDY_CONFIG` | Config file path |
+| `CREDDY_DATA_DIR` | Data directory |
+
+---
+
+## Exit Codes
+
+| Code | Description |
+|------|-------------|
+| `0` | Success |
+| `1` | General error |
+| `2` | Invalid arguments |
+| `3` | Connection error |
+| `4` | Authentication error |
+| `5` | Enrollment denied/expired |
+
+---
+## server.mdx
+
+# Server
+
+Running and configuring the Creddy server.
+
+## Starting the Server
+
+```bash
+creddy server
+```
+
+### Command Line Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--port` | `8080` | HTTP server port |
+| `--host` | `0.0.0.0` | Host to bind to |
+| `--data-dir` | `~/.creddy` | Data directory for keys and database |
+| `--config` | `~/.creddy/config.yaml` | Configuration file path |
+
+### Example
+
+```bash
+creddy server \
+  --port 9000 \
+  --host 127.0.0.1 \
+  --data-dir /var/lib/creddy
+```
+
+## Configuration File
+
+Create `~/.creddy/config.yaml`:
+
+```yaml
+server:
+  port: 8080
+  host: 0.0.0.0
+
+# Backend configurations
+backends:
+  github:
+    type: github
+    token: ${GITHUB_TOKEN}
+    default_ttl: 1h
+    max_ttl: 24h
+    
+  aws-prod:
+    type: aws
+    access_key_id: ${AWS_ACCESS_KEY_ID}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+    region: us-east-1
+    default_ttl: 15m
+    max_ttl: 1h
+
+# Audit log settings
+audit:
+  enabled: true
+  retention: 90d
+```
+
+### Environment Variable Substitution
+
+Use `${VAR_NAME}` syntax to inject environment variables into the config. This keeps secrets out of the config file.
+
+## Data Directory
+
+The data directory (`~/.creddy` by default) contains:
+
+```
+~/.creddy/
+├── config.yaml      # Configuration
+├── creddy.db        # SQLite database (audit log)
+├── keys/
+│   └── signing.key  # Ed25519 signing key
+└── logs/
+    └── creddy.log   # Server logs
+```
+
+## Health Check
+
+```bash
+curl http://localhost:8080/health
+```
+
+Returns:
+
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0"
+}
+```
+
+## Running in Production
+
+### Systemd Service
+
+Create `/etc/systemd/system/creddy.service`:
+
+```ini
+[Unit]
+Description=Creddy credential server
+After=network.target
+
+[Service]
+Type=simple
+User=creddy
+ExecStart=/usr/local/bin/creddy server --config /etc/creddy/config.yaml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable creddy
+sudo systemctl start creddy
+```
+
+### Docker
+
+```dockerfile
+FROM golang:1.24-alpine AS builder
+RUN go install github.com/getcreddy/creddy@latest
+
+FROM alpine:latest
+COPY --from=builder /go/bin/creddy /usr/local/bin/
+EXPOSE 8080
+CMD ["creddy", "server"]
+```
+
+```bash
+docker run -d \
+  -p 8080:8080 \
+  -v ~/.creddy:/root/.creddy \
+  creddy
+```
+
+## Security Considerations
+
+1. **Run behind a reverse proxy** — Use nginx/caddy for TLS termination
+2. **Restrict network access** — Only allow trusted agents to connect
+3. **Use environment variables** — Keep secrets out of config files
+4. **Enable audit logging** — Track all credential issuances
+5. **Rotate keys regularly** — Use `creddy keys rotate`
