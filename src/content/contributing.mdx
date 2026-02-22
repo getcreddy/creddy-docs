@@ -1,0 +1,76 @@
+# Contributing
+
+Creddy is open source and we welcome contributions from the community.
+
+## Getting Involved
+
+The easiest way to get involved is to [open an issue](https://github.com/getcreddy/creddy/issues/new) on GitHub.
+
+### Report a Bug
+
+Found something broken? [Open a bug report](https://github.com/getcreddy/creddy/issues/new?labels=bug) with:
+
+- What you expected to happen
+- What actually happened
+- Steps to reproduce
+- Your environment (OS, Creddy version)
+
+### Request a Feature
+
+Have an idea for Creddy? [Open a feature request](https://github.com/getcreddy/creddy/issues/new?labels=enhancement) describing:
+
+- The problem you're trying to solve
+- Your proposed solution
+- Any alternatives you've considered
+
+### Ask a Question
+
+Not sure about something? [Open a discussion](https://github.com/getcreddy/creddy/issues/new?labels=question) — we're happy to help.
+
+## Contributing Code
+
+Want to contribute code? Great!
+
+1. **Fork the repo** — [github.com/getcreddy/creddy](https://github.com/getcreddy/creddy)
+2. **Create a branch** — `git checkout -b my-feature`
+3. **Make your changes** — follow existing code style
+4. **Test your changes** — `go test ./...`
+5. **Open a PR** — describe what you changed and why
+
+### Development Setup
+
+```bash
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/creddy.git
+cd creddy
+
+# Build
+go build -o creddy ./cmd/creddy
+
+# Run tests
+go test ./...
+
+# Run the server locally
+./creddy server --data-dir ./test-data
+```
+
+### Code Style
+
+- Follow existing patterns in the codebase
+- Add tests for new functionality
+- Keep commits focused and well-described
+- Update documentation if needed
+
+## Documentation
+
+This documentation site is also open source at [getcreddy/creddy-docs](https://github.com/getcreddy/creddy-docs).
+
+Found a typo or want to improve the docs? PRs welcome!
+
+## License
+
+By contributing to Creddy, you agree that your contributions will be licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0).
+
+---
+
+Thank you for helping make Creddy better! 🙏

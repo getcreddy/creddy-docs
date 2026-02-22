@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
-import { Geist, Geist_Mono } from 'next/font/google'
-import { JetBrains_Mono } from 'next/font/google'
-import '../styles/globals.css'
+import { Geist, Geist_Mono, JetBrains_Mono } from 'next/font/google'
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
