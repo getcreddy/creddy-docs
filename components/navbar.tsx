@@ -29,9 +29,7 @@ export function Navbar() {
               Quick Start
             </a>
             <a
-              href="https://docs.creddy.dev"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/docs"
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
               Docs
