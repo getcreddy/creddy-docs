@@ -1,12 +1,10 @@
 export default {
   index: 'Introduction',
   'getting-started': 'Getting Started',
-  authentication: 'Client Authentication',
   concepts: 'Concepts',
-  server: 'Server',
-  github: 'GitHub Integration',
-  anthropic: 'Anthropic Integration',
+  server: 'Server Setup',
+  authentication: 'Client Authentication',
+  integrations: 'Integrations',
+  reference: 'Reference',
   examples: 'Examples',
-  api: 'API Reference',
-  cli: 'CLI Reference',
 }
