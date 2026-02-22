@@ -293,6 +293,35 @@ export function DocsChatSidebar() {
                                     h1: ({ children }) => <h1 style={{ fontSize: '18px', fontWeight: 600, margin: '12px 0 8px' }}>{children}</h1>,
                                     h2: ({ children }) => <h2 style={{ fontSize: '16px', fontWeight: 600, margin: '12px 0 8px' }}>{children}</h2>,
                                     h3: ({ children }) => <h3 style={{ fontSize: '15px', fontWeight: 600, margin: '10px 0 6px' }}>{children}</h3>,
+                                    table: ({ children }) => (
+                                      <div style={{ overflowX: 'auto', margin: '12px 0' }}>
+                                        <table style={{ 
+                                          width: '100%', 
+                                          borderCollapse: 'collapse', 
+                                          fontSize: '13px',
+                                          border: '1px solid #e5e7eb',
+                                          borderRadius: '6px',
+                                        }}>{children}</table>
+                                      </div>
+                                    ),
+                                    thead: ({ children }) => <thead style={{ backgroundColor: '#f9fafb' }}>{children}</thead>,
+                                    tbody: ({ children }) => <tbody>{children}</tbody>,
+                                    tr: ({ children }) => <tr style={{ borderBottom: '1px solid #e5e7eb' }}>{children}</tr>,
+                                    th: ({ children }) => (
+                                      <th style={{ 
+                                        padding: '8px 12px', 
+                                        textAlign: 'left', 
+                                        fontWeight: 600,
+                                        borderBottom: '2px solid #e5e7eb',
+                                        whiteSpace: 'nowrap',
+                                      }}>{children}</th>
+                                    ),
+                                    td: ({ children }) => (
+                                      <td style={{ 
+                                        padding: '8px 12px', 
+                                        borderBottom: '1px solid #e5e7eb',
+                                      }}>{children}</td>
+                                    ),
                                   }}
                                 >
                                   {part.text}
