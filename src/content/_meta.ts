@@ -6,6 +6,7 @@ export default {
   server: 'Server',
   github: 'GitHub Integration',
   anthropic: 'Anthropic Integration',
+  doppler: 'Doppler Integration',
   examples: 'Examples',
   api: 'API Reference',
   cli: 'CLI Reference',
