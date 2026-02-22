@@ -1,0 +1,212 @@
+# Replicated Integration
+
+Creddy's Replicated integration creates scoped Service Account tokens for the Vendor Portal API. Tokens can be limited to specific applications and channels.
+
+## How It Works
+
+```
+┌─────────────┐    creddy get replicated   ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘        token (TTL)         └──────┬──────┘
+       │                                          │
+       │ replicated CLI                           │ Vendor API
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│ Replicated  │                            │ Replicated  │
+│   Vendor    │                            │  Vendor API │
+│   Portal    │                            └─────────────┘
+└─────────────┘
+```
+
+## Requirements
+
+- Replicated Vendor Portal account
+- API token with permission to create Service Accounts
+- Team admin or owner role
+
+## Server Setup
+
+### 1. Get Admin API Token
+
+1. Log into [vendor.replicated.com](https://vendor.replicated.com)
+2. Go to Team Settings → API Tokens (or Service Accounts)
+3. Create a token with admin permissions
+4. Note your Application ID(s) if you want to scope by default
+
+### 2. Configure Creddy
+
+```bash
+creddy backend add replicated \
+  --api-token "..." \
+  --app-id "app_abc123"   # optional default app
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "replicated",
+    "name": "replicated",
+    "config": {
+      "api_token": "...",
+      "app_id": "app_abc123"
+    }
+  }'
+```
+
+## Agent Enrollment
+
+```bash
+creddy enroll --server http://creddy:8400 --name release-bot \
+  --can replicated:app_abc123
+```
+
+### Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `replicated:*` | Full Vendor Portal access |
+| `replicated:<app_id>` | Access scoped to a specific application |
+| `replicated:<app_id>/<channel>` | Access scoped to an app and channel |
+| `replicated:<app_id>:read` | Read-only access to application |
+
+## Requesting Tokens
+
+```bash
+# Get a token with full access
+export REPLICATED_API_TOKEN=$(creddy get replicated)
+
+# App-scoped token
+export REPLICATED_API_TOKEN=$(creddy get replicated --scope "replicated:app_abc123")
+
+# Channel-scoped token
+export REPLICATED_API_TOKEN=$(creddy get replicated --scope "replicated:app_abc123/Stable")
+
+# Read-only token
+export REPLICATED_API_TOKEN=$(creddy get replicated --scope "replicated:app_abc123:read")
+```
+
+### Using with Replicated CLI
+
+```bash
+# Set the token
+export REPLICATED_API_TOKEN=$(creddy get replicated)
+
+# List releases
+replicated release ls --app app_abc123
+
+# Create a release
+replicated release create --yaml-dir ./manifests --app app_abc123
+
+# Promote to a channel
+replicated release promote 123 Stable --app app_abc123
+```
+
+### Using in CI/CD
+
+```yaml
+# GitHub Actions example
+- name: Get Replicated Token
+  run: |
+    export REPLICATED_API_TOKEN=$(creddy get replicated --scope "replicated:${{ env.APP_ID }}")
+    echo "REPLICATED_API_TOKEN=$REPLICATED_API_TOKEN" >> $GITHUB_ENV
+
+- name: Create Release
+  run: |
+    replicated release create \
+      --yaml-dir ./manifests \
+      --app ${{ env.APP_ID }} \
+      --promote Unstable
+```
+
+## Token Lifecycle
+
+### TTL Expiry
+
+When the TTL expires, Creddy deletes the Service Account from Replicated:
+
+```bash
+# Request a 30-minute token
+creddy get replicated --ttl 30m
+
+# After 30 minutes, the Service Account is deleted
+```
+
+### Agent Unenroll
+
+When an agent is unenrolled, all their Replicated Service Accounts are deleted immediately.
+
+## RBAC Policies
+
+The plugin creates Service Accounts with appropriate RBAC based on scope:
+
+| Scope | RBAC Policy |
+|-------|-------------|
+| `replicated:*` | No explicit policy (team defaults) |
+| `replicated:app_id` | App-level admin |
+| `replicated:app_id:read` | App-level read |
+| `replicated:app_id/channel` | App + Channel admin |
+| `replicated:app_id/channel:read` | App + Channel read |
+
+## Common Use Cases
+
+### Release Automation
+
+```bash
+# Bot that creates releases to Unstable
+creddy enroll --server ... --name release-bot \
+  --can replicated:app_abc123/Unstable
+```
+
+### Multi-App Access
+
+```bash
+# Bot that needs access to multiple apps
+creddy enroll --server ... --name multi-app-bot \
+  --can replicated:app_abc123 \
+  --can replicated:app_def456
+```
+
+### Read-Only Monitoring
+
+```bash
+# Bot that only reads release status
+creddy enroll --server ... --name monitor-bot \
+  --can replicated:app_abc123:read
+```
+
+## Security Considerations
+
+- Use channel scopes for CI/CD that only promotes to specific channels
+- Use `:read` scopes for monitoring and reporting agents
+- The admin token can create Service Accounts with any permissions it has
+- Service Accounts are visible in the Vendor Portal team settings
+
+## Troubleshooting
+
+### "Failed to create service account"
+
+- Verify your admin token has permission to create Service Accounts
+- Check you're a team admin or owner
+- Ensure the app ID is correct
+
+### "App not found"
+
+- Verify the app ID exists and you have access
+- App IDs are case-sensitive
+
+### Token not working with CLI
+
+- Ensure the token is exported correctly
+- Check the RBAC policy grants sufficient permissions
+- Try with `--app` flag explicitly
+
+## Version History
+
+### v0.1.0 (Latest)
+- Initial release
+- Service Account creation with RBAC policies
+- App and channel scoping

@@ -1645,6 +1645,192 @@ For wider distribution, consider submitting to the community plugins list in [Th
 Questions? [Open an issue](https://github.com/getcreddy/creddy/issues) or check the [Plugin SDK](https://github.com/getcreddy/creddy-plugin-sdk) repository.
 
 ---
+## integrations/dockerhub.mdx
+
+# Docker Hub Integration
+
+Creddy's Docker Hub integration creates scoped Personal Access Tokens for your AI agents. Tokens can be limited to specific repositories with read or write access.
+
+## How It Works
+
+```
+┌─────────────┐    creddy get dockerhub    ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘     dckr_pat_xxx (TTL)     └──────┬──────┘
+       │                                          │
+       │ docker pull/push                         │ Hub API
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│ Docker Hub  │                            │ Docker Hub  │
+│  Registry   │                            │     API     │
+└─────────────┘                            └─────────────┘
+```
+
+## Requirements
+
+- Docker Hub account
+- Personal Access Token with "Read, Write, Delete" scope (for creating scoped tokens)
+
+## Server Setup
+
+### 1. Create Admin Token
+
+1. Log into [hub.docker.com](https://hub.docker.com)
+2. Go to Account Settings → Security → Access Tokens
+3. Create a token with "Read, Write, Delete" permissions
+4. Save the token securely
+
+### 2. Configure Creddy
+
+```bash
+creddy backend add dockerhub \
+  --username "myuser" \
+  --password "dckr_pat_..."
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "dockerhub",
+    "name": "dockerhub",
+    "config": {
+      "username": "myuser",
+      "password": "dckr_pat_..."
+    }
+  }'
+```
+
+## Agent Enrollment
+
+```bash
+creddy enroll --server http://creddy:8400 --name my-agent \
+  --can dockerhub:myorg/myimage
+```
+
+### Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `dockerhub:*` | Full access to all repositories |
+| `dockerhub:/*` | Access to all repos in a namespace |
+| `dockerhub:/` | Access to a specific repository |
+| `dockerhub:/:read` | Pull-only access |
+| `dockerhub:/:write` | Push and pull access (default) |
+
+## Requesting Tokens
+
+```bash
+# Get a token
+TOKEN=$(creddy get dockerhub)
+
+# Use with Docker
+echo $TOKEN | docker login -u myuser --password-stdin
+
+# Repository-scoped token
+TOKEN=$(creddy get dockerhub --scope "dockerhub:myorg/myimage")
+
+# Read-only token (pull only)
+TOKEN=$(creddy get dockerhub --scope "dockerhub:myorg/myimage:read")
+```
+
+### Using in CI/CD
+
+```yaml
+# GitHub Actions example
+- name: Login to Docker Hub
+  run: |
+    TOKEN=$(creddy get dockerhub --scope "dockerhub:myorg/myimage")
+    echo $TOKEN | docker login -u myuser --password-stdin
+
+- name: Build and push
+  run: |
+    docker build -t myorg/myimage:latest .
+    docker push myorg/myimage:latest
+```
+
+### Using with Docker Compose
+
+```bash
+# Set credentials
+export DOCKER_USERNAME=myuser
+export DOCKER_PASSWORD=$(creddy get dockerhub)
+
+# Use in compose
+docker compose pull
+docker compose up
+```
+
+## Token Lifecycle
+
+### TTL Expiry
+
+Tokens are automatically deleted when their TTL expires:
+
+```bash
+# Request a 1-hour token
+creddy get dockerhub --ttl 1h
+
+# After 1 hour, Creddy deletes the token from Docker Hub
+```
+
+### Agent Unenroll
+
+When an agent is unenrolled, all their Docker Hub tokens are immediately revoked.
+
+## Read vs Write Access
+
+| Scope Suffix | Docker Actions |
+|--------------|----------------|
+| `:read` | `docker pull` only |
+| `:write` (or no suffix) | `docker pull`, `docker push` |
+
+```bash
+# CI agent that only needs to pull
+creddy enroll --server ... --name ci-runner \
+  --can dockerhub:myorg/baseimage:read
+
+# Build agent that pushes images
+creddy enroll --server ... --name builder \
+  --can dockerhub:myorg/*:write
+```
+
+## Security Considerations
+
+- Use `:read` scopes for agents that don't need to push
+- Scope tokens to specific repositories when possible
+- Use short TTLs for CI/CD jobs
+- The admin token stored in Creddy can create any scoped token
+
+## Troubleshooting
+
+### "Login failed"
+
+- Verify username and password are correct
+- Check the admin token hasn't expired
+- Ensure the token has sufficient permissions
+
+### "Token creation failed"
+
+- You may have hit Docker Hub's token limit
+- Verify your account is in good standing
+
+### Pull works but push fails
+
+- Check your scope includes write access (no `:read` suffix)
+- Verify the repository exists and you have push permissions
+
+## Version History
+
+### v0.1.0 (Latest)
+- Initial release
+- Repository-scoped access tokens
+- Read/write permission control
+
+---
 ## integrations/doppler.mdx
 
 # Doppler Integration
@@ -2306,9 +2492,11 @@ Creddy connects to external services to issue ephemeral, scoped credentials. Eac
 |-------------|-------------|--------|
 | [GitHub](/docs/integrations/github) | GitHub App installation tokens | ✅ Stable |
 | [Anthropic](/docs/integrations/anthropic) | Anthropic API keys | ✅ Stable |
+| [OpenAI](/docs/integrations/openai) | OpenAI API keys | ✅ Stable |
 | [Doppler](/docs/integrations/doppler) | Doppler service tokens | ✅ Stable |
+| [Docker Hub](/docs/integrations/dockerhub) | Docker Hub access tokens | ✅ Stable |
+| [Replicated](/docs/integrations/replicated) | Replicated Vendor Portal tokens | ✅ Stable |
 | AWS | AWS IAM temporary credentials | 🚧 Coming Soon |
-| OpenAI | OpenAI API keys | 🚧 Coming Soon |
 
 ## Installing Integrations
 
@@ -2400,6 +2588,379 @@ Third-party integrations are created by the community. Before installing:
 - ✅ Verify checksums if provided
 
 Third-party integrations run as subprocesses and receive the configuration you provide, but cannot access other backends or Creddy's database directly.
+
+---
+## integrations/openai.mdx
+
+# OpenAI Integration
+
+Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys are created on-demand and automatically deleted when they expire.
+
+## How It Works
+
+```
+┌─────────────┐     creddy get openai      ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘      sk-xxx (1h TTL)       └──────┬──────┘
+       │                                          │
+       │ API calls                                │ Admin API
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│   OpenAI    │                            │   OpenAI    │
+│     API     │                            │  Admin API  │
+└─────────────┘                            └─────────────┘
+```
+
+## Requirements
+
+- OpenAI account with API access
+- Admin API key with permission to create/delete API keys
+- Organization admin access for project-scoped keys (optional)
+
+## Server Setup
+
+### 1. Get Admin API Key
+
+1. Log into [platform.openai.com](https://platform.openai.com)
+2. Go to Settings → Organization → API Keys
+3. Create an API key with admin permissions
+4. Note your Organization ID (if using multi-org)
+
+### 2. Configure Creddy
+
+```bash
+creddy backend add openai \
+  --admin-key "sk-..." \
+  --org-id "org-..."        # optional
+  --project-id "proj-..."   # optional default project
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "openai",
+    "name": "openai",
+    "config": {
+      "admin_key": "sk-...",
+      "org_id": "org-...",
+      "project_id": "proj-..."
+    }
+  }'
+```
+
+## Agent Enrollment
+
+```bash
+creddy enroll --server http://creddy:8400 --name my-agent \
+  --can openai
+```
+
+### Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `openai:*` | Full API access |
+| `openai:` | Access scoped to a specific project |
+
+## Requesting Keys
+
+```bash
+# Get an API key
+export OPENAI_API_KEY=$(creddy get openai)
+
+# Project-scoped key
+export OPENAI_API_KEY=$(creddy get openai --scope "openai:proj_abc123")
+
+# Custom TTL
+export OPENAI_API_KEY=$(creddy get openai --ttl 30m)
+```
+
+### Using with Python
+
+```python
+
+from openai import OpenAI
+
+# Uses OPENAI_API_KEY from environment
+client = OpenAI()
+
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+### Using with curl
+
+```bash
+curl https://api.openai.com/v1/chat/completions \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+## Key Lifecycle
+
+### TTL Expiry
+
+When the TTL expires, Creddy automatically deletes the key from OpenAI:
+
+```bash
+# Request a 30-minute key
+creddy get openai --ttl 30m
+
+# After 30 minutes, the key is deleted from OpenAI
+```
+
+### Agent Unenroll
+
+When an agent is unenrolled, all their active OpenAI keys are revoked immediately.
+
+## Security Considerations
+
+- Keep your admin API key secure — it can create/delete any key in your organization
+- Use short TTLs for untrusted agents
+- Consider separate OpenAI organizations for different trust levels
+- Monitor API usage in the OpenAI dashboard
+
+## Troubleshooting
+
+### "Admin API access required"
+
+Your API key needs admin permissions. Create a new key with full access in the OpenAI dashboard.
+
+### "Failed to create API key"
+
+- Verify your admin key is valid
+- Check you haven't hit API key limits
+- Ensure organization ID is correct (if specified)
+
+## Version History
+
+### v0.1.0 (Latest)
+- Initial release
+- API key creation and revocation
+- Project scoping support
+
+---
+## integrations/replicated.mdx
+
+# Replicated Integration
+
+Creddy's Replicated integration creates scoped Service Account tokens for the Vendor Portal API. Tokens can be limited to specific applications and channels.
+
+## How It Works
+
+```
+┌─────────────┐    creddy get replicated   ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘        token (TTL)         └──────┬──────┘
+       │                                          │
+       │ replicated CLI                           │ Vendor API
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│ Replicated  │                            │ Replicated  │
+│   Vendor    │                            │  Vendor API │
+│   Portal    │                            └─────────────┘
+└─────────────┘
+```
+
+## Requirements
+
+- Replicated Vendor Portal account
+- API token with permission to create Service Accounts
+- Team admin or owner role
+
+## Server Setup
+
+### 1. Get Admin API Token
+
+1. Log into [vendor.replicated.com](https://vendor.replicated.com)
+2. Go to Team Settings → API Tokens (or Service Accounts)
+3. Create a token with admin permissions
+4. Note your Application ID(s) if you want to scope by default
+
+### 2. Configure Creddy
+
+```bash
+creddy backend add replicated \
+  --api-token "..." \
+  --app-id "app_abc123"   # optional default app
+```
+
+Or via API:
+
+```bash
+curl -X POST http://localhost:8400/v1/admin/backends \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "replicated",
+    "name": "replicated",
+    "config": {
+      "api_token": "...",
+      "app_id": "app_abc123"
+    }
+  }'
+```
+
+## Agent Enrollment
+
+```bash
+creddy enroll --server http://creddy:8400 --name release-bot \
+  --can replicated:app_abc123
+```
+
+### Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `replicated:*` | Full Vendor Portal access |
+| `replicated:` | Access scoped to a specific application |
+| `replicated:/` | Access scoped to an app and channel |
+| `replicated::read` | Read-only access to application |
+
+## Requesting Tokens
+
+```bash
+# Get a token with full access
+export REPLICATED_API_TOKEN=$(creddy get replicated)
+
+# App-scoped token
+export REPLICATED_API_TOKEN=$(creddy get replicated --scope "replicated:app_abc123")
+
+# Channel-scoped token
+export REPLICATED_API_TOKEN=$(creddy get replicated --scope "replicated:app_abc123/Stable")
+
+# Read-only token
+export REPLICATED_API_TOKEN=$(creddy get replicated --scope "replicated:app_abc123:read")
+```
+
+### Using with Replicated CLI
+
+```bash
+# Set the token
+export REPLICATED_API_TOKEN=$(creddy get replicated)
+
+# List releases
+replicated release ls --app app_abc123
+
+# Create a release
+replicated release create --yaml-dir ./manifests --app app_abc123
+
+# Promote to a channel
+replicated release promote 123 Stable --app app_abc123
+```
+
+### Using in CI/CD
+
+```yaml
+# GitHub Actions example
+- name: Get Replicated Token
+  run: |
+    export REPLICATED_API_TOKEN=$(creddy get replicated --scope "replicated:${{ env.APP_ID }}")
+    echo "REPLICATED_API_TOKEN=$REPLICATED_API_TOKEN" >> $GITHUB_ENV
+
+- name: Create Release
+  run: |
+    replicated release create \
+      --yaml-dir ./manifests \
+      --app ${{ env.APP_ID }} \
+      --promote Unstable
+```
+
+## Token Lifecycle
+
+### TTL Expiry
+
+When the TTL expires, Creddy deletes the Service Account from Replicated:
+
+```bash
+# Request a 30-minute token
+creddy get replicated --ttl 30m
+
+# After 30 minutes, the Service Account is deleted
+```
+
+### Agent Unenroll
+
+When an agent is unenrolled, all their Replicated Service Accounts are deleted immediately.
+
+## RBAC Policies
+
+The plugin creates Service Accounts with appropriate RBAC based on scope:
+
+| Scope | RBAC Policy |
+|-------|-------------|
+| `replicated:*` | No explicit policy (team defaults) |
+| `replicated:app_id` | App-level admin |
+| `replicated:app_id:read` | App-level read |
+| `replicated:app_id/channel` | App + Channel admin |
+| `replicated:app_id/channel:read` | App + Channel read |
+
+## Common Use Cases
+
+### Release Automation
+
+```bash
+# Bot that creates releases to Unstable
+creddy enroll --server ... --name release-bot \
+  --can replicated:app_abc123/Unstable
+```
+
+### Multi-App Access
+
+```bash
+# Bot that needs access to multiple apps
+creddy enroll --server ... --name multi-app-bot \
+  --can replicated:app_abc123 \
+  --can replicated:app_def456
+```
+
+### Read-Only Monitoring
+
+```bash
+# Bot that only reads release status
+creddy enroll --server ... --name monitor-bot \
+  --can replicated:app_abc123:read
+```
+
+## Security Considerations
+
+- Use channel scopes for CI/CD that only promotes to specific channels
+- Use `:read` scopes for monitoring and reporting agents
+- The admin token can create Service Accounts with any permissions it has
+- Service Accounts are visible in the Vendor Portal team settings
+
+## Troubleshooting
+
+### "Failed to create service account"
+
+- Verify your admin token has permission to create Service Accounts
+- Check you're a team admin or owner
+- Ensure the app ID is correct
+
+### "App not found"
+
+- Verify the app ID exists and you have access
+- App IDs are case-sensitive
+
+### Token not working with CLI
+
+- Ensure the token is exported correctly
+- Check the RBAC policy grants sufficient permissions
+- Try with `--app` flag explicitly
+
+## Version History
+
+### v0.1.0 (Latest)
+- Initial release
+- Service Account creation with RBAC policies
+- App and channel scoping
 
 ---
 ## pricing.mdx
