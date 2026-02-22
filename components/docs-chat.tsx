@@ -74,12 +74,12 @@ export function DocsChatSidebar() {
   const isLoading = status === 'streaming' || status === 'submitted';
   const c = isDark ? colors.dark : colors.light;
 
-  // Detect dark mode from Nextra's .dark class or system preference
+  // Detect dark mode from Nextra's .dark class (Nextra handles system preference internally)
   useEffect(() => {
     const checkDarkMode = () => {
+      // Only follow Nextra's explicit theme setting via .dark class
       const hasDarkClass = document.documentElement.classList.contains('dark');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setIsDark(hasDarkClass || prefersDark);
+      setIsDark(hasDarkClass);
     };
     
     checkDarkMode();
@@ -88,13 +88,8 @@ export function DocsChatSidebar() {
     const observer = new MutationObserver(checkDarkMode);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     
-    // Also watch system preference
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    mediaQuery.addEventListener('change', checkDarkMode);
-    
     return () => {
       observer.disconnect();
-      mediaQuery.removeEventListener('change', checkDarkMode);
     };
   }, []);
 
