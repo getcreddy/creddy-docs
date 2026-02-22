@@ -1,5 +1,5 @@
 import { createGroq } from '@ai-sdk/groq';
-import { streamText } from 'ai';
+import { streamText, convertToModelMessages } from 'ai';
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -41,10 +41,13 @@ Guidelines:
 - If something isn't covered in the docs, say "I don't have information about that in the current documentation"
 - Format responses with markdown when appropriate`;
 
+  // Convert UI messages (parts array) to model messages (content string)
+  const modelMessages = convertToModelMessages(messages);
+
   const result = streamText({
     model: groq('openai/gpt-oss-120b'),
     system: systemPrompt,
-    messages,
+    messages: modelMessages,
   });
 
   return result.toUIMessageStreamResponse();
