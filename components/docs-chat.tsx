@@ -46,7 +46,7 @@ export function DocsChatSidebar() {
           right: '320px',
           zIndex: 9999,
         }}
-        className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-cyan-400 hover:bg-cyan-50 hover:text-cyan-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-cyan-500 dark:hover:bg-gray-700 dark:hover:text-cyan-400"
+        className="flex flex-row items-center gap-2 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-cyan-400 hover:bg-cyan-50 hover:text-cyan-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-cyan-500 dark:hover:bg-gray-700 dark:hover:text-cyan-400"
       >
         <Sparkles className="size-4 text-cyan-500" />
         <span>Ask AI</span>
