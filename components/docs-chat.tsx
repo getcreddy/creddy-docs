@@ -10,8 +10,8 @@ const transport = new DefaultChatTransport({
   api: '/api/chat',
 });
 
-const PANEL_WIDTH = 420;
-const PANEL_WIDTH_EXPANDED = 580;
+const PANEL_WIDTH = 480;
+const PANEL_WIDTH_EXPANDED = 680;
 
 // Combined component with button + panel - ALL INLINE STYLES (no Tailwind on docs pages)
 export function DocsChatSidebar() {
@@ -31,16 +31,19 @@ export function DocsChatSidebar() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Push content when panel opens
+  // Push content when panel opens and hide TOC
   useEffect(() => {
     if (isOpen) {
       document.body.style.marginRight = `${panelWidth}px`;
       document.body.style.transition = 'margin-right 0.2s ease';
+      document.body.setAttribute('data-ai-panel-open', 'true');
     } else {
       document.body.style.marginRight = '0px';
+      document.body.removeAttribute('data-ai-panel-open');
     }
     return () => {
       document.body.style.marginRight = '0px';
+      document.body.removeAttribute('data-ai-panel-open');
     };
   }, [isOpen, panelWidth]);
 
@@ -376,11 +379,18 @@ export function DocsChatSidebar() {
         </div>
       )}
 
-      {/* Spinner keyframe animation */}
+      {/* Spinner keyframe animation + hide TOC when panel open */}
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        /* Hide Nextra's "On this page" TOC when AI panel is open */
+        body[data-ai-panel-open="true"] .nextra-toc,
+        body[data-ai-panel-open="true"] aside.nextra-scrollbar:last-of-type,
+        body[data-ai-panel-open="true"] [class*="toc"],
+        body[data-ai-panel-open="true"] nav[aria-label="table of contents"] {
+          display: none !important;
         }
       `}</style>
     </>
