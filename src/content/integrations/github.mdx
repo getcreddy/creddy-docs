@@ -265,23 +265,15 @@ Error: github tokens have a maximum TTL of 1 hour (requested: 4h0m0s)
 
 For longer-running tasks, your agent should request a fresh token before the current one expires.
 
-### Tokens Cannot Be Revoked Early
+### Token Revocation
 
-Unlike some other integrations, GitHub installation tokens **cannot be revoked before they expire**. GitHub's API does not support early revocation.
+GitHub tokens **can be revoked early** via the [revoke endpoint](https://docs.github.com/en/rest/apps/installations#revoke-an-installation-access-token). When Creddy's reaper runs:
 
-When you request a token with `--ttl 30m`:
-1. Creddy tells GitHub to create a token that expires in 30 minutes
-2. GitHub sets the expiration at creation time
-3. The token is valid for exactly 30 minutes—no way to shorten it
+1. Creddy calls GitHub's `DELETE /installation/token` endpoint
+2. The token is immediately invalidated
+3. Any further API calls with that token return `401 Unauthorized`
 
-**What "reaping" means for GitHub:** When Creddy's reaper runs and finds an expired GitHub credential, it removes it from Creddy's database but cannot revoke it from GitHub. The token simply expires naturally based on the TTL set at creation.
-
-**Security implication:** If an agent is compromised, you cannot immediately revoke their GitHub token. You can:
-- Unenroll the agent (prevents new tokens)
-- Wait for existing tokens to expire (max 1 hour)
-- Revoke the entire GitHub App installation (nuclear option—affects all agents)
-
-For high-security scenarios, use shorter TTLs (e.g., 10-15 minutes) so exposure windows are minimal.
+This means your requested TTL (e.g., `--ttl 5m`) is enforced—the token stops working after 5 minutes, not GitHub's default 1 hour.
 
 ## Audit Trail
 
