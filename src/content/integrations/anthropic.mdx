@@ -32,6 +32,12 @@ The key difference from GitHub: **the agent gets a real API key** that works wit
 - **Anthropic Admin API access** — Requires Scale or Enterprise plan
 - **Admin API key** — Generated from your Anthropic console
 
+## Installation
+
+```bash
+creddy plugin install anthropic
+```
+
 ## Server Setup
 
 ### 1. Get Admin API Key
@@ -42,6 +48,18 @@ The key difference from GitHub: **the agent gets a real API key** that works wit
 4. Save it securely — it won't be shown again
 
 ### 2. Configure Creddy
+
+Add to your Creddy config (`~/.creddy/config.yaml`):
+
+```yaml
+integrations:
+  anthropic:
+    plugin: creddy-anthropic
+    config:
+      admin_key: "sk-admin-..."
+```
+
+Or via CLI:
 
 ```bash
 creddy backend add anthropic \
