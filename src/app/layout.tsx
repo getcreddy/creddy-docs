@@ -14,8 +14,7 @@ export const metadata: Metadata = {
   description: 'Open source, self-hosted identity service that issues ephemeral, scoped credentials to AI agents. Stop sharing your keys.',
   icons: {
     icon: [
-      { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
-      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
+      { url: '/favicon.ico', sizes: '32x32' },
       { url: '/icon.svg', type: 'image/svg+xml' },
     ],
     apple: '/apple-icon.png',
