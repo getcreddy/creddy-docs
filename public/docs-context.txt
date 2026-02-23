@@ -1028,6 +1028,12 @@ The key difference from GitHub: **the agent gets a real API key** that works wit
 - **Anthropic Admin API access** — Requires Scale or Enterprise plan
 - **Admin API key** — Generated from your Anthropic console
 
+## Installation
+
+```bash
+creddy plugin install anthropic
+```
+
 ## Server Setup
 
 ### 1. Get Admin API Key
@@ -1038,6 +1044,18 @@ The key difference from GitHub: **the agent gets a real API key** that works wit
 4. Save it securely — it won't be shown again
 
 ### 2. Configure Creddy
+
+Add to your Creddy config (`~/.creddy/config.yaml`):
+
+```yaml
+integrations:
+  anthropic:
+    plugin: creddy-anthropic
+    config:
+      admin_key: "sk-admin-..."
+```
+
+Or via CLI:
 
 ```bash
 creddy backend add anthropic \
@@ -2453,6 +2471,37 @@ The token inherits the permissions configured on your GitHub App, reduced by any
 | Contents: Read | `github:owner/repo` | Contents: Read |
 
 You cannot grant more permissions than the app has—Creddy only reduces, never expands.
+
+## Limitations
+
+### Maximum TTL: 1 Hour
+
+GitHub installation tokens have a **hard limit of 1 hour** imposed by GitHub's API. If you request a longer TTL, Creddy will return an error:
+
+```bash
+$ creddy get github --ttl 4h
+Error: github tokens have a maximum TTL of 1 hour (requested: 4h0m0s)
+```
+
+For longer-running tasks, your agent should request a fresh token before the current one expires.
+
+### Tokens Cannot Be Revoked Early
+
+Unlike some other integrations, GitHub installation tokens **cannot be revoked before they expire**. GitHub's API does not support early revocation.
+
+When you request a token with `--ttl 30m`:
+1. Creddy tells GitHub to create a token that expires in 30 minutes
+2. GitHub sets the expiration at creation time
+3. The token is valid for exactly 30 minutes—no way to shorten it
+
+**What "reaping" means for GitHub:** When Creddy's reaper runs and finds an expired GitHub credential, it removes it from Creddy's database but cannot revoke it from GitHub. The token simply expires naturally based on the TTL set at creation.
+
+**Security implication:** If an agent is compromised, you cannot immediately revoke their GitHub token. You can:
+- Unenroll the agent (prevents new tokens)
+- Wait for existing tokens to expire (max 1 hour)
+- Revoke the entire GitHub App installation (nuclear option—affects all agents)
+
+For high-security scenarios, use shorter TTLs (e.g., 10-15 minutes) so exposure windows are minimal.
 
 ## Audit Trail
 
