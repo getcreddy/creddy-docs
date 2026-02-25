@@ -4,33 +4,51 @@ Get Creddy up and running in minutes.
 
 ## Installation
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/getcreddy/creddy/releases).
+### Quick Install (Recommended)
+
+The install script automatically detects your OS and architecture, downloads the correct binary, verifies the checksum, and installs it:
+
+```bash
+curl -fsSL https://get.creddy.dev/install.sh | sh
+```
+
+This installs to `/usr/local/bin/creddy` (or `~/.creddy/bin/creddy` if you don't have sudo access).
+
+**Install a specific version:**
+
+```bash
+curl -fsSL https://get.creddy.dev/install.sh | sh -s -- v0.0.2
+```
+
+### Manual Download
+
+Download binaries directly from [GitHub Releases](https://github.com/getcreddy/creddy/releases):
 
 ```bash
 # macOS (Apple Silicon)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-arm64.tar.gz
-tar -xzf creddy-darwin-arm64.tar.gz
-sudo mv creddy /usr/local/bin/
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-arm64
+chmod +x creddy-darwin-arm64
+sudo mv creddy-darwin-arm64 /usr/local/bin/creddy
 
 # macOS (Intel)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-amd64.tar.gz
-tar -xzf creddy-darwin-amd64.tar.gz
-sudo mv creddy /usr/local/bin/
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-amd64
+chmod +x creddy-darwin-amd64
+sudo mv creddy-darwin-amd64 /usr/local/bin/creddy
 
 # Linux (amd64)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-amd64.tar.gz
-tar -xzf creddy-linux-amd64.tar.gz
-sudo mv creddy /usr/local/bin/
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-amd64
+chmod +x creddy-linux-amd64
+sudo mv creddy-linux-amd64 /usr/local/bin/creddy
 
 # Linux (arm64)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-arm64.tar.gz
-tar -xzf creddy-linux-arm64.tar.gz
-sudo mv creddy /usr/local/bin/
+curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-arm64
+chmod +x creddy-linux-arm64
+sudo mv creddy-linux-arm64 /usr/local/bin/creddy
 ```
 
-### From Source
+### From Source (Not Recommended)
 
-If you have Go installed:
+If you have Go installed, you can build from source. Note that this won't include version information in the binary:
 
 ```bash
 go install github.com/getcreddy/creddy@latest
