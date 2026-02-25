@@ -92,9 +92,44 @@ Returns:
 
 ## Running in Production
 
-### Systemd Service
+### Systemd Service (Recommended)
 
-Create `/etc/systemd/system/creddy.service`:
+The easiest way to run Creddy as a service:
+
+```bash
+sudo creddy install --listen 0.0.0.0:8400
+```
+
+This automatically:
+- Creates a systemd unit file with security hardening
+- Creates the data directory (`/var/lib/creddy`)
+- Enables and starts the service
+
+**Options:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--listen` | `0.0.0.0:8400` | Address to listen on |
+| `--data-dir` | `/var/lib/creddy` | Data directory |
+| `--agent-inactivity-days` | `0` | Auto-unenroll inactive agents (0 = disabled) |
+
+**Managing the service:**
+
+```bash
+systemctl status creddy      # Check status
+journalctl -u creddy -f      # View logs
+sudo systemctl restart creddy # Restart
+```
+
+**Uninstall:**
+
+```bash
+sudo creddy uninstall
+```
+
+### Manual Systemd Setup
+
+If you prefer to create the unit file manually:
 
 ```ini
 [Unit]
@@ -103,16 +138,20 @@ After=network.target
 
 [Service]
 Type=simple
-User=creddy
-ExecStart=/usr/local/bin/creddy server --config /etc/creddy/config.yaml
-Restart=always
+ExecStart=/usr/local/bin/creddy server --listen 0.0.0.0:8400
+Restart=on-failure
 RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/creddy
 
 [Install]
 WantedBy=multi-user.target
 ```
 
 ```bash
+sudo systemctl daemon-reload
 sudo systemctl enable creddy
 sudo systemctl start creddy
 ```
