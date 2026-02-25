@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node scripts/build-docs-context.js && next dev",
     "build": "node scripts/build-docs-context.js && next build",
+    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
     "start": "next start"
   },
   "dependencies": {
@@ -68,6 +69,7 @@
     "@tailwindcss/postcss": "^4.2.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
+    "pagefind": "^1.4.0",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
     "typescript": "^5.7.0"
