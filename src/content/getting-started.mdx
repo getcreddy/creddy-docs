@@ -1,123 +1,109 @@
 # Getting Started
 
-Get Creddy up and running in minutes.
+Creddy has two components: a **server** that holds your secrets and issues credentials, and a **client** that agents use to request them.
 
-## Installation
+## Quick Overview
 
-### Quick Install (Recommended)
+| Component | Who runs it | Install location |
+|-----------|-------------|------------------|
+| **Server** | You (once, on a VPS or local machine) | `/usr/local/bin/creddy` |
+| **Client** | Each agent/machine that needs credentials | `~/.local/bin/creddy` |
 
-The install script automatically detects your OS and architecture, downloads the correct binary, verifies the checksum, and installs it:
+Both use the same `creddy` binary — the difference is how you install and run it.
+
+---
+
+## Client Setup
+
+Install the CLI on machines that need to request credentials:
 
 ```bash
 curl -fsSL https://get.creddy.dev/install.sh | sh
 ```
 
-This installs to `/usr/local/bin/creddy` (or `~/.creddy/bin/creddy` if you don't have sudo access).
+This installs to `~/.local/bin/creddy` (no sudo required).
 
-**Install a specific version:**
+### Enroll with a Server
 
-```bash
-curl -fsSL https://get.creddy.dev/install.sh | sh -s -- v0.0.2
-```
-
-### Manual Download
-
-Download binaries directly from [GitHub Releases](https://github.com/getcreddy/creddy/releases):
+Before requesting credentials, enroll with your Creddy server:
 
 ```bash
-# macOS (Apple Silicon)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-arm64
-chmod +x creddy-darwin-arm64
-sudo mv creddy-darwin-arm64 /usr/local/bin/creddy
-
-# macOS (Intel)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-amd64
-chmod +x creddy-darwin-amd64
-sudo mv creddy-darwin-amd64 /usr/local/bin/creddy
-
-# Linux (amd64)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-amd64
-chmod +x creddy-linux-amd64
-sudo mv creddy-linux-amd64 /usr/local/bin/creddy
-
-# Linux (arm64)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-arm64
-chmod +x creddy-linux-arm64
-sudo mv creddy-linux-arm64 /usr/local/bin/creddy
+creddy enroll https://your-server:8400
 ```
 
-### From Source (Not Recommended)
+You'll get a one-time code to approve on the server. After enrollment, credentials are stored in `~/.config/creddy/`.
 
-If you have Go installed, you can build from source. Note that this won't include version information in the binary:
+### Request Credentials
 
 ```bash
-go install github.com/getcreddy/creddy@latest
+# GitHub token with repo access
+creddy get github --owner myorg --repo myrepo --ttl 1h
+
+# Use in scripts
+export GITHUB_TOKEN=$(creddy get github --owner myorg --repo myrepo -o token)
 ```
 
-## Starting the Server
+### Install Plugins
+
+Plugins add support for different credential types:
 
 ```bash
-creddy server
+creddy plugin install github
+creddy plugin list
 ```
 
-By default, Creddy runs on `http://localhost:8080`.
+---
 
-### Configuration Options
+## Server Setup
+
+Run the server on a machine you control (VPS, homelab, etc.).
+
+### Install
 
 ```bash
-# Custom port
-creddy server --port 9000
-
-# Custom data directory
-creddy server --data-dir /var/lib/creddy
+curl -fsSL https://get.creddy.dev/install.sh | sudo sh -s -- --to /usr/local/bin
 ```
 
-## Your First Credential
+This installs to `/usr/local/bin/creddy` with sudo.
 
-Once the server is running, request a credential:
+### Start as a Daemon
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/credentials \
-  -H "Content-Type: application/json" \
-  -d '{
-    "backend": "github",
-    "ttl": "1h",
-    "scopes": ["repo:read"]
-  }'
+sudo creddy install --listen 0.0.0.0:8400
 ```
 
-Response:
+This creates a systemd service that:
+- Runs on port 8400
+- Stores data in `/var/lib/creddy`
+- Starts automatically on boot
 
-```json
-{
-  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
-  "expires_at": "2024-01-15T16:00:00Z",
-  "backend": "github",
-  "scopes": ["repo:read"]
-}
+**Manage the service:**
+
+```bash
+systemctl status creddy       # Check status
+journalctl -u creddy -f       # View logs
+sudo systemctl restart creddy # Restart
 ```
 
-## Configuring Backends
+### Configure Backends
 
-Backends are the external services Creddy can issue credentials for. Configure them in `~/.creddy/config.yaml`:
+Install and configure plugins on the server:
 
-```yaml
-backends:
-  github:
-    type: github
-    token: ghp_xxxxxxxxxxxx
-    
-  aws:
-    type: aws
-    access_key_id: AKIA...
-    secret_access_key: ...
-    region: us-east-1
+```bash
+sudo creddy plugin install github
+creddy backend add github \
+  --app-id 123456 \
+  --private-key /path/to/key.pem \
+  --installation-id 789
 ```
 
-See [Concepts](/docs/concepts) for more on how backends work.
+See [Server Setup](/docs/server) for full configuration options.
+
+---
 
 ## Next Steps
 
-- Learn about [Concepts](/docs/concepts) like backends, scopes, and TTLs
-- Explore the [API Reference](/docs/api) for all endpoints
-- Check out the [CLI Reference](/docs/cli) for command-line usage
+- [Server Setup](/docs/server) — Full server configuration guide
+- [GitHub Integration](/docs/integrations/github) — Set up GitHub App credentials
+- [Concepts](/docs/concepts) — Understand agents, backends, and scopes
+- [CLI Reference](/docs/reference/cli) — All available commands

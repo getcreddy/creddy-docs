@@ -36,10 +36,10 @@ Creddy uses public-key cryptography for client authentication. No shared secrets
 
 ## Enrolling a Client
 
-### Step 1: Initialize the Client
+### Step 1: Enroll the Client
 
 ```bash
-$ creddy init --name my-laptop --server https://creddy.example.com
+$ creddy enroll https://creddy.example.com --name my-laptop
 
 Generating keypair... done
 Registering with server... done
@@ -56,7 +56,7 @@ Ask an admin to approve, or run:
 
 ✓ Approved by admin@example.com
 ✓ Client registered: cli_xyz789
-✓ Credentials saved to ~/.creddy/
+✓ Credentials saved to ~/.config/creddy/
 
 Ready. Try: creddy backends
 ```
@@ -138,10 +138,10 @@ Default role is `operator`.
 
 ## Stored Credentials
 
-Client credentials are stored in `~/.creddy/`:
+Client credentials are stored in `~/.config/creddy/`:
 
 ```
-~/.creddy/
+~/.config/creddy/
 ├── config.yaml      # Server URL, client ID
 ├── client.key       # Ed25519 private key (mode 0600)
 └── client_id        # Client identifier
