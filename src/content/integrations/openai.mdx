@@ -1,9 +1,6 @@
 # OpenAI Integration
 
-> **🚧 Coming Soon** — This integration is not yet available. Check back soon or [join the waitlist](https://creddy.dev) to be notified when it launches.
-
-
-Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys are created on-demand and automatically deleted when they expire.
+Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys are created on-demand via the OpenAI Admin API and automatically deleted when they expire.
 
 ## How It Works
 
@@ -11,7 +8,7 @@ Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys 
 ┌─────────────┐     creddy get openai      ┌─────────────┐
 │   Agent     │ ─────────────────────────▶ │   Creddy    │
 │             │ ◀───────────────────────── │   Server    │
-└─────────────┘      sk-xxx (1h TTL)       └──────┬──────┘
+└─────────────┘    sk-svcacct-xxx (TTL)    └──────┬──────┘
        │                                          │
        │ API calls                                │ Admin API
        ▼                                          ▼
@@ -21,28 +18,46 @@ Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys 
 └─────────────┘                            └─────────────┘
 ```
 
+When an agent requests credentials:
+1. Creddy creates a new service account via the Admin API
+2. OpenAI returns a fresh API key (`sk-svcacct-...`)
+3. Creddy tracks the TTL and returns the key to the agent
+4. On expiry, Creddy deletes the service account (key immediately revoked)
+
 ## Requirements
 
-- OpenAI account with API access
-- Admin API key with permission to create/delete API keys
-- Organization admin access for project-scoped keys (optional)
+- OpenAI organization account
+- **Admin API key** (`sk-admin-...`) — requires organization owner to create
+- Project ID (defaults to first active project)
 
 ## Server Setup
 
-### 1. Get Admin API Key
+### 1. Create an Admin API Key
+
+Admin API keys are different from regular API keys. Only organization owners can create them.
 
 1. Log into [platform.openai.com](https://platform.openai.com)
-2. Go to Settings → Organization → API Keys
-3. Create an API key with admin permissions
-4. Note your Organization ID (if using multi-org)
+2. Go to **Settings → Organization → Admin API Keys**  
+   Direct link: [platform.openai.com/settings/organization/admin-keys](https://platform.openai.com/settings/organization/admin-keys)
+3. Click **Create admin key**
+4. Give it a name (e.g., "creddy")
+5. Copy the key — it starts with `sk-admin-`
+
+> **Important:** Admin API keys can only be created by organization owners and have full administrative access. Keep them secure.
 
 ### 2. Configure Creddy
 
 ```bash
 creddy backend add openai \
-  --admin-key "sk-..." \
-  --org-id "org-..."        # optional
-  --project-id "proj-..."   # optional default project
+  --admin-key "sk-admin-..."
+```
+
+Optionally specify a project:
+
+```bash
+creddy backend add openai \
+  --admin-key "sk-admin-..." \
+  --project-id "proj_abc123"
 ```
 
 Or via API:
@@ -54,12 +69,13 @@ curl -X POST http://localhost:8400/v1/admin/backends \
     "type": "openai",
     "name": "openai",
     "config": {
-      "admin_key": "sk-...",
-      "org_id": "org-...",
-      "project_id": "proj-..."
+      "admin_key": "sk-admin-...",
+      "project_id": "proj_abc123"
     }
   }'
 ```
+
+If no `project_id` is specified, Creddy uses the first active project in your organization.
 
 ## Agent Enrollment
 
@@ -72,20 +88,24 @@ creddy enroll --server http://creddy:8400 --name my-agent \
 
 | Scope | Description |
 |-------|-------------|
-| `openai:*` | Full API access |
-| `openai:<project_id>` | Access scoped to a specific project |
+| `openai` | Full API access |
+| `openai:gpt` | Access to GPT models (chat completions) |
+| `openai:dall-e` | Access to DALL-E image generation |
+| `openai:whisper` | Access to Whisper audio transcription |
+
+> **Note:** OpenAI API keys currently provide full API access regardless of scope. Scopes are informational and used for policy enforcement within Creddy.
 
 ## Requesting Keys
 
 ```bash
-# Get an API key
+# Get an API key (1 hour default TTL)
 export OPENAI_API_KEY=$(creddy get openai)
-
-# Project-scoped key
-export OPENAI_API_KEY=$(creddy get openai --scope "openai:proj_abc123")
 
 # Custom TTL
 export OPENAI_API_KEY=$(creddy get openai --ttl 30m)
+
+# Scoped request (for policy enforcement)
+export OPENAI_API_KEY=$(creddy get openai --scope "openai:gpt")
 ```
 
 ### Using with Python
@@ -114,16 +134,18 @@ curl https://api.openai.com/v1/chat/completions \
 
 ## Key Lifecycle
 
+### Creation
+
+When you request a key, Creddy:
+1. Creates a service account via `POST /v1/organization/projects/{project_id}/service_accounts`
+2. OpenAI returns the service account with an API key
+3. Key is immediately usable (may take 1-2 seconds to propagate)
+
 ### TTL Expiry
 
-When the TTL expires, Creddy automatically deletes the key from OpenAI:
-
-```bash
-# Request a 30-minute key
-creddy get openai --ttl 30m
-
-# After 30 minutes, the key is deleted from OpenAI
-```
+When the TTL expires, Creddy:
+1. Deletes the service account via `DELETE /v1/organization/projects/{project_id}/service_accounts/{id}`
+2. Key is immediately invalidated (may take a few seconds to propagate)
 
 ### Agent Unenroll
 
@@ -131,26 +153,50 @@ When an agent is unenrolled, all their active OpenAI keys are revoked immediatel
 
 ## Security Considerations
 
-- Keep your admin API key secure — it can create/delete any key in your organization
-- Use short TTLs for untrusted agents
+- **Protect your Admin API key** — it can create/delete any service account in your organization
+- Use short TTLs (30m-1h) for untrusted agents
 - Consider separate OpenAI organizations for different trust levels
-- Monitor API usage in the OpenAI dashboard
+- Monitor usage in the [OpenAI dashboard](https://platform.openai.com/usage)
+- Service accounts appear in Settings → Organization → Projects → [Project] → Service Accounts
 
 ## Troubleshooting
 
-### "Admin API access required"
+### "admin_key must be an Admin API key (starts with sk-admin-)"
 
-Your API key needs admin permissions. Create a new key with full access in the OpenAI dashboard.
+You're using a regular API key. Admin API keys:
+- Start with `sk-admin-`
+- Are created at [Settings → Organization → Admin API Keys](https://platform.openai.com/settings/organization/admin-keys)
+- Require organization owner access to create
 
-### "Failed to create API key"
+### "no projects found in organization"
 
-- Verify your admin key is valid
-- Check you haven't hit API key limits
-- Ensure organization ID is correct (if specified)
+Your organization needs at least one project. Create one in the OpenAI dashboard under Settings → Organization → Projects.
+
+### "Key not working immediately after creation"
+
+OpenAI has eventual consistency. Keys may take 1-2 seconds to become active after creation. The Creddy plugin handles this automatically.
+
+### "Key still works after revocation"
+
+OpenAI's key revocation can take up to 10 seconds to propagate. This is expected behavior.
+
+## API Endpoints Used
+
+For reference, the plugin uses these OpenAI Admin API endpoints:
+
+| Operation | Endpoint |
+|-----------|----------|
+| List projects | `GET /v1/organization/projects` |
+| Create service account | `POST /v1/organization/projects/{project_id}/service_accounts` |
+| Delete service account | `DELETE /v1/organization/projects/{project_id}/service_accounts/{id}` |
 
 ## Version History
 
-### v0.1.0 (Latest)
-- Initial release
-- API key creation and revocation
-- Project scoping support
+### v0.2.0 (Latest)
+- Correct Admin API implementation using service accounts
+- Admin key validation (`sk-admin-` prefix required)
+- Automatic project discovery
+- Integration tests
+
+### v0.1.0
+- Initial release (placeholder)
