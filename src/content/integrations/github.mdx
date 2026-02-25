@@ -285,17 +285,29 @@ creddy audit --limit 10
 
 Shows who requested what, when, and from where—useful for security reviews and compliance.
 
+## Plugin Download
+
+The GitHub plugin is available from the Creddy plugin registry:
+
+| Platform | Download |
+|----------|----------|
+| Linux (x64) | [creddy-github-linux-amd64](https://plugins.creddy.dev/github/v0.1.0/creddy-github-linux-amd64) |
+| Linux (ARM64) | [creddy-github-linux-arm64](https://plugins.creddy.dev/github/v0.1.0/creddy-github-linux-arm64) |
+| macOS (Intel) | [creddy-github-darwin-amd64](https://plugins.creddy.dev/github/v0.1.0/creddy-github-darwin-amd64) |
+| macOS (Apple Silicon) | [creddy-github-darwin-arm64](https://plugins.creddy.dev/github/v0.1.0/creddy-github-darwin-arm64) |
+| Windows (x64) | [creddy-github-windows-amd64.exe](https://plugins.creddy.dev/github/v0.1.0/creddy-github-windows-amd64.exe) |
+
+**Checksums:** [manifest.json](https://plugins.creddy.dev/github/v0.1.0/manifest.json)
+
+**Latest version:** [plugins.creddy.dev/github/latest/](https://plugins.creddy.dev/github/latest/)
+
 ## Version History
 
-### v0.2.1 (Latest)
-- Fixed: Token scoping for repos with special characters
-- Fixed: Installation discovery when multiple orgs installed
-
-### v0.2.0
-- Added: Repository-level scoping (`github:owner/repo`)
-- Added: Read/write permission modifiers (`:read`, `:write`)
-- Added: Owner wildcard support (`github:owner/*`)
-
-### v0.1.0
-- Initial release
-- Basic installation token generation
+### v0.1.0 (Current)
+- Initial public release
+- GitHub App installation token generation
+- Repository-level scoping (`github:owner/repo`)
+- Read/write permission modifiers (`:read`, `:write`)
+- Owner wildcard support (`github:owner/*`)
+- Token revocation support
+- Integration tests for token lifecycle
