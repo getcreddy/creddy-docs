@@ -1,12 +1,14 @@
 # Getting Started
 
-Creddy is a single binary that operates in two modes: as a **server** that holds secrets and issues credentials, and as a **client** that agents use to request them.
+Creddy is a single binary that operates in two modes: as a **server** that holds your master secrets and issues short-lived credentials, and as a **client** that agents use to request them.
 
 Get it running and issue your first credential in 5 minutes.
 
 ## 1. Install the Server
 
-On your server (VPS, homelab, etc.):
+You need one Creddy server that holds your master keys. Agents connect to it to get temporary credentials — they never see the actual secrets.
+
+Run this on the machine where you want to run the Creddy server:
 
 ```bash
 curl -fsSL https://get.creddy.dev/install.sh | sudo sh -s -- --to /usr/local/bin
