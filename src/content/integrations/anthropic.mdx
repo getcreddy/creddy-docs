@@ -1,18 +1,16 @@
 # Anthropic Integration
 
-> **🚧 Coming Soon** — This integration is not yet available. Check back soon or [join the waitlist](https://creddy.dev) to be notified when it launches.
-
-
-Creddy's Anthropic integration creates truly ephemeral API keys. Unlike static keys, these are created on-demand and automatically deleted when they expire or when an agent is unenrolled.
+Creddy's Anthropic integration creates real, ephemeral API keys on-demand. Unlike proxy-based solutions, agents get actual `sk-ant-...` keys that work with any client.
 
 ## How It Works
 
-Creddy uses Anthropic's Admin API to manage API keys programmatically:
+Anthropic doesn't offer programmatic key creation via API, so Creddy uses browser session automation:
 
-1. Agent requests `creddy get anthropic`
-2. Creddy creates a new API key via Admin API
-3. Returns real `sk-ant-...` key to the agent
-4. On TTL expiry or unenroll → Creddy deletes the key from Anthropic
+1. You authenticate Creddy with your Anthropic account (one-time setup)
+2. Agent requests `creddy get anthropic`
+3. Creddy creates a real API key via the Console API
+4. Returns `sk-ant-...` key to the agent
+5. On TTL expiry or unenroll → Creddy archives the key
 
 ```
 ┌─────────────┐    creddy get anthropic    ┌─────────────┐
@@ -20,20 +18,21 @@ Creddy uses Anthropic's Admin API to manage API keys programmatically:
 │             │ ◀───────────────────────── │   Server    │
 └─────────────┘    sk-ant-xxx (1h TTL)     └──────┬──────┘
        │                                          │
-       │ claude / API calls                       │ Admin API
-       ▼                                          ▼
-┌─────────────┐                            ┌─────────────┐
-│  Anthropic  │                            │  Anthropic  │
-│     API     │                            │  Admin API  │
-└─────────────┘                            └─────────────┘
+       │ Claude API calls                         │ Console API
+       ▼                                          │ (session auth)
+┌─────────────┐                                   ▼
+│  Anthropic  │                            ┌─────────────┐
+│     API     │                            │  Anthropic  │
+└─────────────┘                            │   Console   │
+                                           └─────────────┘
 ```
 
-The key difference from GitHub: **the agent gets a real API key** that works with any client (Claude Code, SDKs, curl), but Creddy automatically cleans it up.
+The key difference from proxy solutions: **the agent gets a real API key** that works with any client (Claude Code, SDKs, curl), and Creddy manages its lifecycle.
 
 ## Requirements
 
-- **Anthropic Admin API access** — Requires Scale or Enterprise plan
-- **Admin API key** — Generated from your Anthropic console
+- Anthropic account (any plan)
+- A machine with a browser (laptop/desktop) for initial setup
 
 ## Installation
 
@@ -43,44 +42,63 @@ creddy plugin install anthropic
 
 ## Server Setup
 
-### 1. Get Admin API Key
+### 1. Authenticate Creddy
 
-1. Log into [console.anthropic.com](https://console.anthropic.com)
-2. Go to Settings → Admin API
-3. Generate an Admin API key
-4. Save it securely — it won't be shown again
-
-### 2. Configure Creddy
-
-Add to your Creddy config (`~/.creddy/config.yaml`):
-
-```yaml
-integrations:
-  anthropic:
-    plugin: creddy-anthropic
-    config:
-      admin_key: "sk-admin-..."
-```
-
-Or via CLI:
+Creddy needs a browser session to create API keys. Run the auth flow from your Creddy server:
 
 ```bash
-creddy backend add anthropic \
-  --admin-key "sk-admin-..."
+creddy anthropic login
 ```
 
-Or via API:
+This displays a URL and waits for authentication:
+
+```
+Waiting for auth...
+On your laptop run: npx @creddy/auth http://your-server:8400/v1/auth/anthropic/abc123
+```
+
+### 2. Complete Auth on Your Laptop
+
+On a machine with a browser (your laptop), run the provided command:
 
 ```bash
-curl -X POST http://localhost:8400/v1/admin/backends \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "anthropic",
-    "name": "anthropic",
-    "config": {
-      "admin_key": "sk-admin-..."
-    }
-  }'
+npx @creddy/auth http://your-server:8400/v1/auth/anthropic/abc123
+```
+
+This:
+1. Opens a browser to console.anthropic.com
+2. You log in normally (Google, email, 2FA — whatever you use)
+3. Captures the session cookie
+4. Sends it directly to your Creddy server
+
+```
+🔐 Creddy Auth Helper
+
+Provider: anthropic
+Server: http://your-server:8400/v1/auth/anthropic/abc123
+
+Opening browser...
+Please log in to Anthropic.
+
+Waiting for login...
+✓ Login detected!
+✓ Session sent to Creddy server!
+```
+
+Back on your server, you'll see:
+
+```
+✓ Connected to Anthropic!
+Session expires in ~30 days.
+```
+
+### 3. Session Renewal
+
+Sessions last approximately 30 days. When expired, run `creddy anthropic login` again.
+
+Creddy will warn you before expiry:
+```
+⚠️ Anthropic session expires in 3 days. Run `creddy anthropic login` to renew.
 ```
 
 ## Agent Enrollment
@@ -91,8 +109,6 @@ Agents request Anthropic access during enrollment:
 creddy enroll --server http://creddy:8400 --name my-agent \
   --can anthropic
 ```
-
-Currently, Anthropic scopes are simple — an agent either has access or doesn't. Future versions may support model-level scoping.
 
 ## Requesting Keys
 
@@ -113,24 +129,20 @@ claude "Hello, world"
 ### Using with Claude Code
 
 ```bash
-# Set the key
 export ANTHROPIC_API_KEY=$(creddy get anthropic --ttl 1h)
-
-# Claude Code uses it automatically
 claude code "implement a fibonacci function"
 ```
 
 ### Using with Python SDK
 
 ```python
-import os
 import anthropic
 
 # Key from environment (set via creddy get)
 client = anthropic.Anthropic()
 
 message = client.messages.create(
-    model="claude-3-sonnet-20240229",
+    model="claude-sonnet-4-20250514",
     max_tokens=1024,
     messages=[{"role": "user", "content": "Hello!"}]
 )
@@ -140,107 +152,102 @@ message = client.messages.create(
 
 ### TTL Expiry
 
-Keys are automatically deleted when their TTL expires:
+Keys are archived when their TTL expires:
 
 ```bash
 # Request a 30-minute key
 creddy get anthropic --ttl 30m
 
-# After 30 minutes, Creddy's reaper:
-# 1. Calls Anthropic Admin API to delete the key
-# 2. Removes it from the active credentials database
+# After 30 minutes, Creddy:
+# 1. Sets the key status to "archived" via Admin API
+# 2. Removes it from active credentials
 ```
-
-The agent cannot use the key after expiry — it's deleted from Anthropic, not just Creddy.
 
 ### Agent Unenroll
 
-When an agent is unenrolled, all their active keys are revoked:
+When an agent is unenrolled, all their active keys are archived:
 
 ```bash
-# Admin unenrolls an agent
 creddy unenroll my-agent
-
-# Creddy:
-# 1. Finds all active credentials for my-agent
-# 2. Deletes each Anthropic key via Admin API
-# 3. Removes the agent
 ```
 
-This provides immediate revocation — no waiting for TTL expiry.
+This provides immediate revocation.
 
-## Audit Trail
+## Manual Authentication (Fallback)
 
-All key creation is logged:
+If you can't use `@creddy/auth` (no browser available, network restrictions), you can manually provide the session:
 
 ```bash
-creddy audit --limit 10
+creddy anthropic login --manual
 ```
 
-Shows who requested keys, when, and which agent.
+Then:
+1. Log into console.anthropic.com in your browser
+2. Open DevTools → Application → Cookies
+3. Copy the `sessionKey` value
+4. Paste when prompted
 
 ## Security Considerations
 
-### Admin Key Security
+### Session Security
 
-The Admin API key stored in Creddy can create and delete any API key in your organization. Protect it:
+The Anthropic session stored in Creddy can create API keys. Protect it:
 
-- Run Creddy on a trusted server (Tailscale, VPN, localhost)
-- Use `creddy install` with security hardening
-- Rotate the admin key periodically
+- Run Creddy on a trusted server
+- Use Tailscale, VPN, or localhost only
+- The session is stored encrypted at rest
 
 ### Key Visibility
 
-Unlike GitHub tokens (which are scoped), Anthropic API keys have full access to your API quota. Consider:
+Anthropic API keys have full access to your API quota. Consider:
 
 - Short TTLs for untrusted agents
-- Monitoring API usage per key name (`creddy-<timestamp>`)
-- Using separate Anthropic organizations for different trust levels
+- Monitoring usage in console.anthropic.com
+- Using separate Anthropic accounts for different trust levels
+
+### Browser Session Risks
+
+The `@creddy/auth` flow:
+- Runs entirely on YOUR laptop
+- Sends data directly to YOUR Creddy server
+- No third-party services involved
+- Session cookie is transmitted over HTTPS (if your server uses it)
 
 ## Comparison with Static Keys
 
 | Aspect | Static Key | Creddy Ephemeral |
 |--------|-----------|------------------|
 | Lifetime | Forever | Minutes to hours |
-| Revocation | Manual | Automatic on TTL/unenroll |
-| Audit | None | Full trail |
+| Revocation | Manual in Console | Automatic on TTL/unenroll |
+| Audit | Check Console | Full trail in Creddy |
 | Agent compromise | Permanent exposure | Limited window |
-| Key rotation | Manual | Automatic |
+| Requires | Console access | One-time auth |
 
 ## Troubleshooting
 
-### "Admin API access required"
+### "Session expired"
 
-You need a Scale or Enterprise plan for Admin API access. Contact Anthropic sales.
+Re-authenticate:
+```bash
+creddy anthropic login
+```
 
 ### "Failed to create API key"
 
-Check that your admin key is valid and has permission to create API keys.
-
-### Key not working
-
-Verify the key was created successfully:
-
+Check session validity:
 ```bash
-# Check active credentials
-creddy list
+creddy anthropic status
 ```
 
-If the key shows as active but doesn't work, the Admin API endpoint may have changed. Check Anthropic's documentation.
+If invalid, re-authenticate.
 
-## Version History
+### @creddy/auth can't reach server
 
-### v0.1.3 (Latest)
-- Added: External ID tracking for revocation
-- Fixed: TTL handling for keys > 24h
+Ensure your Creddy server is accessible from your laptop:
+- Same network / VPN
+- Tailscale
+- Port forwarding (temporarily)
 
-### v0.1.2
-- Added: Scope-based permission levels
-- Improved: Error messages for API failures
+### Browser doesn't open
 
-### v0.1.1
-- Fixed: Key cleanup on agent unenrollment
-
-### v0.1.0
-- Initial release
-- Basic API key generation and revocation
+`@creddy/auth` requires a display. If running on a headless machine, use the `--manual` flag instead.
