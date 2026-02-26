@@ -44,10 +44,10 @@ Creddy uses public-key cryptography for client authentication. No shared secrets
 
 ## Enrolling a Client
 
-### Step 1: Initialize the Client
+### Step 1: Enroll the Client
 
 ```bash
-$ creddy init --name my-laptop --server https://creddy.example.com
+$ creddy enroll https://creddy.example.com --name my-laptop
 
 Generating keypair... done
 Registering with server... done
@@ -64,7 +64,7 @@ Ask an admin to approve, or run:
 
 ✓ Approved by admin@example.com
 ✓ Client registered: cli_xyz789
-✓ Credentials saved to ~/.creddy/
+✓ Credentials saved to ~/.config/creddy/
 
 Ready. Try: creddy backends
 ```
@@ -146,10 +146,10 @@ Default role is `operator`.
 
 ## Stored Credentials
 
-Client credentials are stored in `~/.creddy/`:
+Client credentials are stored in `~/.config/creddy/`:
 
 ```
-~/.creddy/
+~/.config/creddy/
 ├── config.yaml      # Server URL, client ID
 ├── client.key       # Ed25519 private key (mode 0600)
 └── client_id        # Client identifier
@@ -820,109 +820,102 @@ creddy audit --limit 1000 | jq '.[] | {agent: .agent_name, backend: .backend, ti
 
 # Getting Started
 
-Get Creddy up and running in minutes.
+Creddy is a single binary that operates in two modes: as a **server** that holds your master secrets and issues short-lived credentials, and as a **client** that agents use to request them.
 
-## Installation
+Get it running and issue your first credential in 5 minutes.
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/getcreddy/creddy/releases).
+## 1. Install the Server
+
+You need one Creddy server that holds your master keys. Agents connect to it to get temporary credentials — they never see the actual secrets.
+
+Run this on the machine where you want to run the Creddy server:
+
+```bash
+curl -fsSL https://get.creddy.dev/install.sh | sudo sh -s -- --to /usr/local/bin
+```
+
+## 2. Start the Daemon
+
+```bash
+sudo creddy install --listen 0.0.0.0:8400
+```
+
+Creddy is now running as a systemd service on port 8400.
+
+```bash
+systemctl status creddy  # Check it's running
+```
+
+## 3. Add a Backend
+
+Install the GitHub plugin and configure it:
+
+```bash
+sudo creddy plugin install github
+```
+
+```bash
+creddy backend add github \
+  --app-id YOUR_APP_ID \
+  --private-key /path/to/private-key.pem \
+  --installation-id YOUR_INSTALLATION_ID
+```
+
+> **Need a GitHub App?** See [GitHub Integration](/docs/integrations/github) for setup instructions.
+
+## 4. Enroll a Client
+
+On the machine that needs credentials (can be the same machine or a different one):
+
+```bash
+# Install the client
+curl -fsSL https://get.creddy.dev/install.sh | sh
+
+# Enroll with the server
+creddy enroll https://your-server:8400
+```
+
+Approve the enrollment on the server:
+
+```bash
+creddy admin approve 
+```
+
+## 5. Get Credentials
+
+```bash
+creddy get github --owner myorg --repo myrepo
+```
+
+That's it! You've issued your first ephemeral credential.
+
+**Manual Installation**
+
+If you prefer to download binaries directly:
 
 ```bash
 # macOS (Apple Silicon)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-arm64.tar.gz
-tar -xzf creddy-darwin-arm64.tar.gz
-sudo mv creddy /usr/local/bin/
+curl -LO https://get.creddy.dev/cli/latest/creddy-darwin-arm64
+chmod +x creddy-darwin-arm64
+sudo mv creddy-darwin-arm64 /usr/local/bin/creddy
 
 # macOS (Intel)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-darwin-amd64.tar.gz
-tar -xzf creddy-darwin-amd64.tar.gz
-sudo mv creddy /usr/local/bin/
+curl -LO https://get.creddy.dev/cli/latest/creddy-darwin-amd64
+chmod +x creddy-darwin-amd64
+sudo mv creddy-darwin-amd64 /usr/local/bin/creddy
 
 # Linux (amd64)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-amd64.tar.gz
-tar -xzf creddy-linux-amd64.tar.gz
-sudo mv creddy /usr/local/bin/
+curl -LO https://get.creddy.dev/cli/latest/creddy-linux-amd64
+chmod +x creddy-linux-amd64
+sudo mv creddy-linux-amd64 /usr/local/bin/creddy
 
 # Linux (arm64)
-curl -LO https://github.com/getcreddy/creddy/releases/latest/download/creddy-linux-arm64.tar.gz
-tar -xzf creddy-linux-arm64.tar.gz
-sudo mv creddy /usr/local/bin/
+curl -LO https://get.creddy.dev/cli/latest/creddy-linux-arm64
+chmod +x creddy-linux-arm64
+sudo mv creddy-linux-arm64 /usr/local/bin/creddy
 ```
 
-### From Source
-
-If you have Go installed:
-
-```bash
-go install github.com/getcreddy/creddy@latest
-```
-
-## Starting the Server
-
-```bash
-creddy server
-```
-
-By default, Creddy runs on `http://localhost:8080`.
-
-### Configuration Options
-
-```bash
-# Custom port
-creddy server --port 9000
-
-# Custom data directory
-creddy server --data-dir /var/lib/creddy
-```
-
-## Your First Credential
-
-Once the server is running, request a credential:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/credentials \
-  -H "Content-Type: application/json" \
-  -d '{
-    "backend": "github",
-    "ttl": "1h",
-    "scopes": ["repo:read"]
-  }'
-```
-
-Response:
-
-```json
-{
-  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
-  "expires_at": "2024-01-15T16:00:00Z",
-  "backend": "github",
-  "scopes": ["repo:read"]
-}
-```
-
-## Configuring Backends
-
-Backends are the external services Creddy can issue credentials for. Configure them in `~/.creddy/config.yaml`:
-
-```yaml
-backends:
-  github:
-    type: github
-    token: ghp_xxxxxxxxxxxx
-    
-  aws:
-    type: aws
-    access_key_id: AKIA...
-    secret_access_key: ...
-    region: us-east-1
-```
-
-See [Concepts](/docs/concepts) for more on how backends work.
-
-## Next Steps
-
-- Learn about [Concepts](/docs/concepts) like backends, scopes, and TTLs
-- Explore the [API Reference](/docs/api) for all endpoints
-- Check out the [CLI Reference](/docs/cli) for command-line usage
+Verify checksums are available at `https://get.creddy.dev/cli/latest/manifest.json`.
 
 ---
 ## index.mdx
@@ -995,6 +988,8 @@ Ready to get started? Head to [Getting Started](/docs/getting-started).
 ## integrations/anthropic.mdx
 
 # Anthropic Integration
+
+> **🚧 Coming Soon** — This integration is not yet available. Check back soon or [join the waitlist](https://creddy.dev) to be notified when it launches.
 
 Creddy's Anthropic integration creates truly ephemeral API keys. Unlike static keys, these are created on-demand and automatically deleted when they expire or when an agent is unenrolled.
 
@@ -1667,6 +1662,8 @@ Questions? [Open an issue](https://github.com/getcreddy/creddy/issues) or check 
 
 # Docker Hub Integration
 
+> **🚧 Coming Soon** — This integration is not yet available. Check back soon or [join the waitlist](https://creddy.dev) to be notified when it launches.
+
 Creddy's Docker Hub integration creates scoped Personal Access Tokens for your AI agents. Tokens can be limited to specific repositories with read or write access.
 
 ## How It Works
@@ -1852,6 +1849,8 @@ creddy enroll --server ... --name builder \
 ## integrations/doppler.mdx
 
 # Doppler Integration
+
+> **🚧 Coming Soon** — This integration is not yet available. Check back soon or [join the waitlist](https://creddy.dev) to be notified when it launches.
 
 Creddy's Doppler integration creates scoped service tokens that give agents access to specific project secrets. Tokens are ephemeral — created on-demand and automatically revoked when they expire or when an agent is unenrolled.
 
@@ -2485,23 +2484,15 @@ Error: github tokens have a maximum TTL of 1 hour (requested: 4h0m0s)
 
 For longer-running tasks, your agent should request a fresh token before the current one expires.
 
-### Tokens Cannot Be Revoked Early
+### Token Revocation
 
-Unlike some other integrations, GitHub installation tokens **cannot be revoked before they expire**. GitHub's API does not support early revocation.
+GitHub tokens **can be revoked early** via the [revoke endpoint](https://docs.github.com/en/rest/apps/installations#revoke-an-installation-access-token). When Creddy's reaper runs:
 
-When you request a token with `--ttl 30m`:
-1. Creddy tells GitHub to create a token that expires in 30 minutes
-2. GitHub sets the expiration at creation time
-3. The token is valid for exactly 30 minutes—no way to shorten it
+1. Creddy calls GitHub's `DELETE /installation/token` endpoint
+2. The token is immediately invalidated
+3. Any further API calls with that token return `401 Unauthorized`
 
-**What "reaping" means for GitHub:** When Creddy's reaper runs and finds an expired GitHub credential, it removes it from Creddy's database but cannot revoke it from GitHub. The token simply expires naturally based on the TTL set at creation.
-
-**Security implication:** If an agent is compromised, you cannot immediately revoke their GitHub token. You can:
-- Unenroll the agent (prevents new tokens)
-- Wait for existing tokens to expire (max 1 hour)
-- Revoke the entire GitHub App installation (nuclear option—affects all agents)
-
-For high-security scenarios, use shorter TTLs (e.g., 10-15 minutes) so exposure windows are minimal.
+This means your requested TTL (e.g., `--ttl 5m`) is enforced—the token stops working after 5 minutes, not GitHub's default 1 hour.
 
 ## Audit Trail
 
@@ -2513,20 +2504,32 @@ creddy audit --limit 10
 
 Shows who requested what, when, and from where—useful for security reviews and compliance.
 
+## Plugin Download
+
+The GitHub plugin is available from the Creddy plugin registry:
+
+| Platform | Download |
+|----------|----------|
+| Linux (x64) | [creddy-github-linux-amd64](https://plugins.creddy.dev/github/v0.0.2/creddy-github-linux-amd64) |
+| Linux (ARM64) | [creddy-github-linux-arm64](https://plugins.creddy.dev/github/v0.0.2/creddy-github-linux-arm64) |
+| macOS (Intel) | [creddy-github-darwin-amd64](https://plugins.creddy.dev/github/v0.0.2/creddy-github-darwin-amd64) |
+| macOS (Apple Silicon) | [creddy-github-darwin-arm64](https://plugins.creddy.dev/github/v0.0.2/creddy-github-darwin-arm64) |
+| Windows (x64) | [creddy-github-windows-amd64.exe](https://plugins.creddy.dev/github/v0.0.2/creddy-github-windows-amd64.exe) |
+
+**Checksums:** [manifest.json](https://plugins.creddy.dev/github/v0.0.2/manifest.json)
+
+**Latest version:** [plugins.creddy.dev/github/latest/](https://plugins.creddy.dev/github/latest/)
+
 ## Version History
 
-### v0.2.1 (Latest)
-- Fixed: Token scoping for repos with special characters
-- Fixed: Installation discovery when multiple orgs installed
-
-### v0.2.0
-- Added: Repository-level scoping (`github:owner/repo`)
-- Added: Read/write permission modifiers (`:read`, `:write`)
-- Added: Owner wildcard support (`github:owner/*`)
-
-### v0.1.0
-- Initial release
-- Basic installation token generation
+### v0.0.2 (Current)
+- Initial public release
+- GitHub App installation token generation
+- Repository-level scoping (`github:owner/repo`)
+- Read/write permission modifiers (`:read`, `:write`)
+- Owner wildcard support (`github:owner/*`)
+- Token revocation support
+- Integration tests for token lifecycle
 
 ---
 ## integrations/index.mdx
@@ -2537,15 +2540,15 @@ Creddy connects to external services to issue ephemeral, scoped credentials. Eac
 
 ## Available Integrations
 
-| Integration | Description | Status |
-|-------------|-------------|--------|
-| [GitHub](/docs/integrations/github) | GitHub App installation tokens | ✅ Stable |
-| [Anthropic](/docs/integrations/anthropic) | Anthropic API keys | ✅ Stable |
-| [OpenAI](/docs/integrations/openai) | OpenAI API keys | ✅ Stable |
-| [Doppler](/docs/integrations/doppler) | Doppler service tokens | ✅ Stable |
-| [Docker Hub](/docs/integrations/dockerhub) | Docker Hub access tokens | ✅ Stable |
-| [Replicated](/docs/integrations/replicated) | Replicated Vendor Portal tokens | ✅ Stable |
-| AWS | AWS IAM temporary credentials | 🚧 Coming Soon |
+| Integration | Description | Version |
+|-------------|-------------|---------|
+| [GitHub](/docs/integrations/github) | GitHub App installation tokens | `v0.0.2` |
+| [OpenAI](/docs/integrations/openai) | OpenAI API keys via Admin API | `v0.0.1` |
+| [Anthropic](/docs/integrations/anthropic) | Anthropic API keys | Coming Soon |
+| [Doppler](/docs/integrations/doppler) | Doppler service tokens | Coming Soon |
+| [Docker Hub](/docs/integrations/dockerhub) | Docker Hub access tokens | Coming Soon |
+| [Replicated](/docs/integrations/replicated) | Replicated Vendor Portal tokens | Coming Soon |
+| AWS | AWS IAM temporary credentials | Coming Soon |
 
 ## Installing Integrations
 
@@ -2562,7 +2565,7 @@ Install an integration:
 creddy plugin install github
 
 # Install specific version
-creddy plugin install github@0.2.0
+creddy plugin install github@0.0.2
 
 # Install multiple
 creddy plugin install github anthropic doppler
@@ -2643,7 +2646,7 @@ Third-party integrations run as subprocesses and receive the configuration you p
 
 # OpenAI Integration
 
-Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys are created on-demand and automatically deleted when they expire.
+Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys are created on-demand via the OpenAI Admin API and automatically deleted when they expire.
 
 ## How It Works
 
@@ -2651,7 +2654,7 @@ Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys 
 ┌─────────────┐     creddy get openai      ┌─────────────┐
 │   Agent     │ ─────────────────────────▶ │   Creddy    │
 │             │ ◀───────────────────────── │   Server    │
-└─────────────┘      sk-xxx (1h TTL)       └──────┬──────┘
+└─────────────┘    sk-svcacct-xxx (TTL)    └──────┬──────┘
        │                                          │
        │ API calls                                │ Admin API
        ▼                                          ▼
@@ -2661,28 +2664,46 @@ Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys 
 └─────────────┘                            └─────────────┘
 ```
 
+When an agent requests credentials:
+1. Creddy creates a new service account via the Admin API
+2. OpenAI returns a fresh API key (`sk-svcacct-...`)
+3. Creddy tracks the TTL and returns the key to the agent
+4. On expiry, Creddy deletes the service account (key immediately revoked)
+
 ## Requirements
 
-- OpenAI account with API access
-- Admin API key with permission to create/delete API keys
-- Organization admin access for project-scoped keys (optional)
+- OpenAI organization account
+- **Admin API key** (`sk-admin-...`) — requires organization owner to create
+- Project ID (defaults to first active project)
 
 ## Server Setup
 
-### 1. Get Admin API Key
+### 1. Create an Admin API Key
+
+Admin API keys are different from regular API keys. Only organization owners can create them.
 
 1. Log into [platform.openai.com](https://platform.openai.com)
-2. Go to Settings → Organization → API Keys
-3. Create an API key with admin permissions
-4. Note your Organization ID (if using multi-org)
+2. Go to **Settings → Organization → Admin API Keys**  
+   Direct link: [platform.openai.com/settings/organization/admin-keys](https://platform.openai.com/settings/organization/admin-keys)
+3. Click **Create admin key**
+4. Give it a name (e.g., "creddy")
+5. Copy the key — it starts with `sk-admin-`
+
+> **Important:** Admin API keys can only be created by organization owners and have full administrative access. Keep them secure.
 
 ### 2. Configure Creddy
 
 ```bash
 creddy backend add openai \
-  --admin-key "sk-..." \
-  --org-id "org-..."        # optional
-  --project-id "proj-..."   # optional default project
+  --admin-key "sk-admin-..."
+```
+
+Optionally specify a project:
+
+```bash
+creddy backend add openai \
+  --admin-key "sk-admin-..." \
+  --project-id "proj_abc123"
 ```
 
 Or via API:
@@ -2694,12 +2715,13 @@ curl -X POST http://localhost:8400/v1/admin/backends \
     "type": "openai",
     "name": "openai",
     "config": {
-      "admin_key": "sk-...",
-      "org_id": "org-...",
-      "project_id": "proj-..."
+      "admin_key": "sk-admin-...",
+      "project_id": "proj_abc123"
     }
   }'
 ```
+
+If no `project_id` is specified, Creddy uses the first active project in your organization.
 
 ## Agent Enrollment
 
@@ -2712,20 +2734,24 @@ creddy enroll --server http://creddy:8400 --name my-agent \
 
 | Scope | Description |
 |-------|-------------|
-| `openai:*` | Full API access |
-| `openai:` | Access scoped to a specific project |
+| `openai` | Full API access |
+| `openai:gpt` | Access to GPT models (chat completions) |
+| `openai:dall-e` | Access to DALL-E image generation |
+| `openai:whisper` | Access to Whisper audio transcription |
+
+> **Note:** OpenAI API keys currently provide full API access regardless of scope. Scopes are informational and used for policy enforcement within Creddy.
 
 ## Requesting Keys
 
 ```bash
-# Get an API key
+# Get an API key (1 hour default TTL)
 export OPENAI_API_KEY=$(creddy get openai)
-
-# Project-scoped key
-export OPENAI_API_KEY=$(creddy get openai --scope "openai:proj_abc123")
 
 # Custom TTL
 export OPENAI_API_KEY=$(creddy get openai --ttl 30m)
+
+# Scoped request (for policy enforcement)
+export OPENAI_API_KEY=$(creddy get openai --scope "openai:gpt")
 ```
 
 ### Using with Python
@@ -2754,16 +2780,18 @@ curl https://api.openai.com/v1/chat/completions \
 
 ## Key Lifecycle
 
+### Creation
+
+When you request a key, Creddy:
+1. Creates a service account via `POST /v1/organization/projects/{project_id}/service_accounts`
+2. OpenAI returns the service account with an API key
+3. Key is immediately usable (may take 1-2 seconds to propagate)
+
 ### TTL Expiry
 
-When the TTL expires, Creddy automatically deletes the key from OpenAI:
-
-```bash
-# Request a 30-minute key
-creddy get openai --ttl 30m
-
-# After 30 minutes, the key is deleted from OpenAI
-```
+When the TTL expires, Creddy:
+1. Deletes the service account via `DELETE /v1/organization/projects/{project_id}/service_accounts/{id}`
+2. Key is immediately invalidated (may take a few seconds to propagate)
 
 ### Agent Unenroll
 
@@ -2771,34 +2799,58 @@ When an agent is unenrolled, all their active OpenAI keys are revoked immediatel
 
 ## Security Considerations
 
-- Keep your admin API key secure — it can create/delete any key in your organization
-- Use short TTLs for untrusted agents
+- **Protect your Admin API key** — it can create/delete any service account in your organization
+- Use short TTLs (30m-1h) for untrusted agents
 - Consider separate OpenAI organizations for different trust levels
-- Monitor API usage in the OpenAI dashboard
+- Monitor usage in the [OpenAI dashboard](https://platform.openai.com/usage)
+- Service accounts appear in Settings → Organization → Projects → [Project] → Service Accounts
 
 ## Troubleshooting
 
-### "Admin API access required"
+### "admin_key must be an Admin API key (starts with sk-admin-)"
 
-Your API key needs admin permissions. Create a new key with full access in the OpenAI dashboard.
+You're using a regular API key. Admin API keys:
+- Start with `sk-admin-`
+- Are created at [Settings → Organization → Admin API Keys](https://platform.openai.com/settings/organization/admin-keys)
+- Require organization owner access to create
 
-### "Failed to create API key"
+### "no projects found in organization"
 
-- Verify your admin key is valid
-- Check you haven't hit API key limits
-- Ensure organization ID is correct (if specified)
+Your organization needs at least one project. Create one in the OpenAI dashboard under Settings → Organization → Projects.
+
+### "Key not working immediately after creation"
+
+OpenAI has eventual consistency. Keys may take 1-2 seconds to become active after creation. The Creddy plugin handles this automatically.
+
+### "Key still works after revocation"
+
+OpenAI's key revocation can take up to 10 seconds to propagate. This is expected behavior.
+
+## API Endpoints Used
+
+For reference, the plugin uses these OpenAI Admin API endpoints:
+
+| Operation | Endpoint |
+|-----------|----------|
+| List projects | `GET /v1/organization/projects` |
+| Create service account | `POST /v1/organization/projects/{project_id}/service_accounts` |
+| Delete service account | `DELETE /v1/organization/projects/{project_id}/service_accounts/{id}` |
 
 ## Version History
 
-### v0.1.0 (Latest)
+### v0.0.1 (Latest)
 - Initial release
-- API key creation and revocation
-- Project scoping support
+- Admin API implementation using service accounts
+- Admin key validation (`sk-admin-` prefix required)
+- Automatic project discovery
+- Integration tests
 
 ---
 ## integrations/replicated.mdx
 
 # Replicated Integration
+
+> **🚧 Coming Soon** — This integration is not yet available. Check back soon or [join the waitlist](https://creddy.dev) to be notified when it launches.
 
 Creddy's Replicated integration creates scoped Service Account tokens for the Vendor Portal API. Tokens can be limited to specific applications and channels.
 
@@ -3776,103 +3828,86 @@ creddy audit [flags]
 ---
 ## server.mdx
 
-# Server
+# Server Setup
 
-Running and configuring the Creddy server.
+This guide covers installing and configuring the Creddy server.
 
-## Starting the Server
+## Installation
+
+### System Install (Recommended)
+
+Install the binary to `/usr/local/bin`:
 
 ```bash
-creddy server
+curl -fsSL https://get.creddy.dev/install.sh | sudo sh -s -- --to /usr/local/bin
 ```
 
-### Command Line Options
+### Install as a Daemon
+
+Set up Creddy as a systemd service:
+
+```bash
+sudo creddy install --listen 0.0.0.0:8400
+```
+
+This automatically:
+- Copies the binary to `/usr/local/bin/creddy` (if needed)
+- Creates `/var/lib/creddy` for data storage
+- Creates `/usr/local/lib/creddy/plugins` for system plugins
+- Writes a hardened systemd unit file
+- Enables and starts the service
+
+**Options:**
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--port` | `8080` | HTTP server port |
-| `--host` | `0.0.0.0` | Host to bind to |
-| `--data-dir` | `~/.creddy` | Data directory for keys and database |
-| `--config` | `~/.creddy/config.yaml` | Configuration file path |
+| `--listen` | `0.0.0.0:8400` | Address and port to listen on |
+| `--data-dir` | `/var/lib/creddy` | Data directory |
+| `--agent-inactivity-days` | `0` | Auto-unenroll inactive agents (0 = disabled) |
 
-### Example
-
-```bash
-creddy server \
-  --port 9000 \
-  --host 127.0.0.1 \
-  --data-dir /var/lib/creddy
-```
-
-## Configuration File
-
-Create `~/.creddy/config.yaml`:
-
-```yaml
-server:
-  port: 8080
-  host: 0.0.0.0
-
-# Backend configurations
-backends:
-  github:
-    type: github
-    token: ${GITHUB_TOKEN}
-    default_ttl: 1h
-    max_ttl: 24h
-    
-  aws-prod:
-    type: aws
-    access_key_id: ${AWS_ACCESS_KEY_ID}
-    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-    region: us-east-1
-    default_ttl: 15m
-    max_ttl: 1h
-
-# Audit log settings
-audit:
-  enabled: true
-  retention: 90d
-```
-
-### Environment Variable Substitution
-
-Use `${VAR_NAME}` syntax to inject environment variables into the config. This keeps secrets out of the config file.
-
-## Data Directory
-
-The data directory (`~/.creddy` by default) contains:
-
-```
-~/.creddy/
-├── config.yaml      # Configuration
-├── creddy.db        # SQLite database (audit log)
-├── keys/
-│   └── signing.key  # Ed25519 signing key
-└── logs/
-    └── creddy.log   # Server logs
-```
-
-## Health Check
+### Managing the Service
 
 ```bash
-curl http://localhost:8080/health
+systemctl status creddy       # Check status
+journalctl -u creddy -f       # View logs
+sudo systemctl restart creddy # Restart
+sudo creddy uninstall         # Remove service
 ```
 
-Returns:
+## Configuration
 
-```json
-{
-  "status": "healthy",
-  "version": "0.1.0"
-}
+### Data Directory
+
+The server stores data in `/var/lib/creddy` (or `--data-dir`):
+
+```
+/var/lib/creddy/
+├── creddy.db        # SQLite database
+└── keys/
+    └── signing.key  # Ed25519 signing key
 ```
 
-## Running in Production
+### Plugin Directory
 
-### Systemd Service
+System plugins are stored in `/usr/local/lib/creddy/plugins`.
 
-Create `/etc/systemd/system/creddy.service`:
+User plugins (from `creddy plugin install`) go to `~/.local/share/creddy/plugins`.
+
+The server searches both directories, so you can install plugins either way.
+
+---
+
+## Running Without systemd
+
+### Foreground (Development)
+
+```bash
+creddy server --listen 127.0.0.1:8400
+```
+
+### Manual Systemd Setup
+
+If you prefer to create the unit file yourself:
 
 ```ini
 [Unit]
@@ -3881,43 +3916,53 @@ After=network.target
 
 [Service]
 Type=simple
-User=creddy
-ExecStart=/usr/local/bin/creddy server --config /etc/creddy/config.yaml
-Restart=always
+ExecStart=/usr/local/bin/creddy server --listen 0.0.0.0:8400 --db /var/lib/creddy/creddy.db
+Restart=on-failure
 RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/creddy
 
 [Install]
 WantedBy=multi-user.target
 ```
 
 ```bash
+sudo systemctl daemon-reload
 sudo systemctl enable creddy
 sudo systemctl start creddy
 ```
 
-### Docker
+---
 
-```dockerfile
-FROM golang:1.24-alpine AS builder
-RUN go install github.com/getcreddy/creddy@latest
-
-FROM alpine:latest
-COPY --from=builder /go/bin/creddy /usr/local/bin/
-EXPOSE 8080
-CMD ["creddy", "server"]
-```
+## Health Check
 
 ```bash
-docker run -d \
-  -p 8080:8080 \
-  -v ~/.creddy:/root/.creddy \
-  creddy
+curl http://localhost:8400/health
 ```
+
+Returns:
+```json
+{
+  "status": "healthy",
+  "version": "v0.0.9"
+}
+```
+
+---
 
 ## Security Considerations
 
 1. **Run behind a reverse proxy** — Use nginx/caddy for TLS termination
-2. **Restrict network access** — Only allow trusted agents to connect
-3. **Use environment variables** — Keep secrets out of config files
-4. **Enable audit logging** — Track all credential issuances
-5. **Rotate keys regularly** — Use `creddy keys rotate`
+2. **Restrict network access** — Firewall the port, only allow trusted agents
+3. **Enable agent inactivity cleanup** — `--agent-inactivity-days 30` removes stale enrollments
+4. **Keep plugins updated** — `creddy plugin outdated` checks for updates
+
+---
+
+## Next Steps
+
+- [Client Authentication](/docs/authentication) — How agents enroll and authenticate
+- [GitHub Integration](/docs/integrations/github) — Configure GitHub App credentials
+- [Building Integrations](/docs/integrations/building) — Create custom plugins
