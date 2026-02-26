@@ -42,19 +42,23 @@ creddy plugin install anthropic
 
 ## Server Setup
 
-### 1. Authenticate Creddy
-
-Creddy needs a browser session to create API keys. Run the auth flow from your Creddy server:
+### 1. Add the Backend
 
 ```bash
-creddy anthropic login
+creddy backend add anthropic
 ```
 
-This displays a URL and waits for authentication:
+Creddy detects that Anthropic requires browser authentication and walks you through:
 
 ```
+Adding backend 'anthropic'...
+
+Anthropic requires browser authentication to create API keys.
+On your laptop run:
+
+  npx @creddy/auth http://your-server:8400/v1/auth/anthropic/abc123
+
 Waiting for auth...
-On your laptop run: npx @creddy/auth http://your-server:8400/v1/auth/anthropic/abc123
 ```
 
 ### 2. Complete Auth on Your Laptop
@@ -85,20 +89,32 @@ Waiting for login...
 ✓ Session sent to Creddy server!
 ```
 
-Back on your server, you'll see:
+Back on your server:
 
 ```
 ✓ Connected to Anthropic!
-Session expires in ~30 days.
+Backend 'anthropic' added. Session expires in ~30 days.
 ```
 
 ### 3. Session Renewal
 
-Sessions last approximately 30 days. When expired, run `creddy anthropic login` again.
+Sessions last approximately 30 days. When expired, Creddy prompts during `creddy get`:
 
-Creddy will warn you before expiry:
+```bash
+$ creddy get anthropic
+⚠️ Anthropic session expired. Re-authenticate? [Y/n]
+
+On your laptop run:
+  npx @creddy/auth http://your-server:8400/v1/auth/anthropic/xyz789
+
+Waiting... ✓
+sk-ant-api03-xxxxx
 ```
-⚠️ Anthropic session expires in 3 days. Run `creddy anthropic login` to renew.
+
+Or manually re-authenticate:
+
+```bash
+creddy backend configure anthropic
 ```
 
 ## Agent Enrollment
@@ -178,7 +194,7 @@ This provides immediate revocation.
 If you can't use `@creddy/auth` (no browser available, network restrictions), you can manually provide the session:
 
 ```bash
-creddy anthropic login --manual
+creddy backend add anthropic --manual
 ```
 
 Then:
@@ -186,6 +202,18 @@ Then:
 2. Open DevTools → Application → Cookies
 3. Copy the `sessionKey` value
 4. Paste when prompted
+
+```
+Adding backend 'anthropic' (manual mode)...
+
+1. Log into console.anthropic.com
+2. Open DevTools (F12) → Application → Cookies
+3. Copy the 'sessionKey' value
+
+Paste sessionKey: █
+
+✓ Backend 'anthropic' added.
+```
 
 ## Security Considerations
 
