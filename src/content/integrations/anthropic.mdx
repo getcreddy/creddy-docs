@@ -99,18 +99,12 @@ creddy get anthropic --ttl 30m
 
 All API calls go through `http://creddy:8400/v1/proxy/anthropic/...`
 
-### Environment Setup
-
-```bash
-export ANTHROPIC_API_KEY=$(creddy get anthropic)
-export ANTHROPIC_BASE_URL=http://creddy:8400/v1/proxy/anthropic
-```
-
 ### With Claude CLI
 
 ```bash
-export ANTHROPIC_API_KEY=$(creddy get anthropic --ttl 1h)
+export ANTHROPIC_AUTH_TOKEN=$(creddy get anthropic --ttl 1h)
 export ANTHROPIC_BASE_URL=http://creddy:8400/v1/proxy/anthropic
+export ANTHROPIC_API_KEY=""  # Must be empty to skip OAuth
 
 claude "Hello, world"
 ```
@@ -236,7 +230,7 @@ Run Creddy on a private network or Tailscale. The proxy endpoint is on the same 
 Check token validity:
 ```bash
 # Is the token format correct?
-echo $ANTHROPIC_API_KEY  # Should be crd_xxx
+echo $ANTHROPIC_AUTH_TOKEN  # Should be crd_xxx
 
 # Is it expired?
 creddy active  # Shows active tokens with expiry
