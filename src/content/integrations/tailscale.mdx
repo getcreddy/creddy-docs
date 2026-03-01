@@ -1,0 +1,263 @@
+# Tailscale Integration
+
+Creddy's Tailscale plugin creates ephemeral auth keys for joining your tailnet. Agents request a key, join the network, and when they disconnect the device is automatically removed.
+
+## How It Works
+
+```
+┌─────────────┐    creddy get tailscale    ┌─────────────┐
+│   Agent     │ ─────────────────────────▶ │   Creddy    │
+│             │ ◀───────────────────────── │   Server    │
+└─────────────┘   tskey-auth-xxx (10 min)  └──────┬──────┘
+       │                                          │
+       │ tailscale up --auth-key=xxx              │ Tailscale API
+       ▼                                          ▼
+┌─────────────┐                            ┌─────────────┐
+│  Tailscale  │ ◀─────────────────────────│  Tailscale  │
+│   Daemon    │    Device joins tailnet    │   Admin     │
+└─────────────┘                            └─────────────┘
+```
+
+1. Agent requests `creddy get tailscale`
+2. Creddy creates a single-use auth key via Tailscale API
+3. Agent runs `tailscale up --auth-key=<key>`
+4. Device joins the tailnet with configured ACL tags
+5. When device disconnects → automatically removed (ephemeral)
+6. On TTL expiry → key revoked (can't be used)
+
+**Key benefits:**
+- No hardcoded auth keys in CI/CD or agent configs
+- Devices are ephemeral (auto-cleaned on disconnect)
+- ACL tags control network access
+- Keys are single-use and time-limited
+
+## Requirements
+
+- Tailscale account with API access
+- API key from [Tailscale Admin Console](https://login.tailscale.com/admin/settings/keys)
+
+## Installation
+
+```bash
+creddy plugin install tailscale
+```
+
+## Server Setup
+
+Add the backend with your Tailscale API key:
+
+```bash
+creddy backend add tailscale
+```
+
+You'll be prompted for:
+- **api_key**: Tailscale API key
+- **tailnet**: Your tailnet name (e.g., `mycompany.com`)
+
+### Configuration Options
+
+```json
+{
+  "api_key": "tskey-api-xxx",
+  "tailnet": "mycompany.com",
+  "default_tags": ["tag:agent"],
+  "ephemeral": true,
+  "preauthorized": true
+}
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `api_key` | Tailscale API key (required) | — |
+| `tailnet` | Tailnet name (required) | — |
+| `default_tags` | ACL tags for all devices | `[]` |
+| `ephemeral` | Auto-remove on disconnect | `true` |
+| `preauthorized` | Skip manual device approval | `true` |
+
+## Agent Enrollment
+
+Agents request Tailscale access during enrollment:
+
+```bash
+creddy enroll --server http://creddy:8400 --name ci-agent \
+  --can tailscale
+```
+
+Or with specific tags:
+
+```bash
+creddy enroll --server http://creddy:8400 --name ci-agent \
+  --can tailscale:tag:ci
+```
+
+## Requesting Auth Keys
+
+Once enrolled and approved:
+
+```bash
+# Get an auth key (default 10 min TTL)
+AUTH_KEY=$(creddy get tailscale)
+
+# Join the tailnet
+tailscale up --auth-key=$AUTH_KEY
+```
+
+### With Specific Tags
+
+```bash
+# Request a key with specific ACL tag
+AUTH_KEY=$(creddy get tailscale --scope tailscale:tag:ci)
+tailscale up --auth-key=$AUTH_KEY
+```
+
+### Custom TTL
+
+```bash
+# Key valid for 30 minutes
+AUTH_KEY=$(creddy get tailscale --ttl 30m)
+```
+
+## Use Cases
+
+### CI/CD Pipeline
+
+```yaml
+# GitHub Actions
+jobs:
+  deploy:
+    steps:
+      - name: Join tailnet
+        run: |
+          AUTH_KEY=$(creddy get tailscale --ttl 30m)
+          sudo tailscale up --auth-key=$AUTH_KEY
+          
+      - name: Access internal services
+        run: |
+          curl http://internal-api.tail123.ts.net/deploy
+          
+      - name: Leave tailnet
+        run: sudo tailscale down
+```
+
+### Ephemeral VMs
+
+```bash
+#!/bin/bash
+# VM startup script
+
+# Get auth key from Creddy
+AUTH_KEY=$(creddy get tailscale)
+
+# Join tailnet
+tailscale up --auth-key=$AUTH_KEY --hostname="worker-$(hostname)"
+
+# VM is now on the tailnet
+# When VM shuts down, device auto-removes
+```
+
+### AI Agents
+
+```python
+import subprocess
+import os
+
+# Agent needs to access internal API
+auth_key = subprocess.check_output(
+    ["creddy", "get", "tailscale", "--ttl", "1h"]
+).decode().strip()
+
+subprocess.run(["tailscale", "up", f"--auth-key={auth_key}"])
+
+# Now agent can reach internal services
+response = requests.get("http://internal-llm.tail123.ts.net/v1/chat")
+```
+
+## Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `tailscale` | Create auth keys with default tags |
+| `tailscale:tag:*` | Create keys with specific ACL tag |
+
+Examples:
+- `tailscale` — uses `default_tags` from config
+- `tailscale:tag:ci` — device gets `tag:ci`
+- `tailscale:tag:prod-agent` — device gets `tag:prod-agent`
+
+## TTL Constraints
+
+- **Minimum TTL:** 1 minute
+- **Maximum TTL:** 24 hours
+- **Default TTL:** 10 minutes
+
+## ACL Configuration
+
+Use Tailscale ACLs to control what devices can access:
+
+```json
+{
+  "acls": [
+    // CI agents can only reach internal APIs
+    {"action": "accept", "src": ["tag:ci"], "dst": ["tag:api:*"]},
+    
+    // Production agents have broader access
+    {"action": "accept", "src": ["tag:prod-agent"], "dst": ["*:*"]}
+  ],
+  "tagOwners": {
+    "tag:ci": ["group:devops"],
+    "tag:prod-agent": ["group:sre"],
+    "tag:agent": ["group:platform"]
+  }
+}
+```
+
+## Security Considerations
+
+### Auth Key Security
+
+- Keys are **single-use** (only one device can join)
+- Keys are **ephemeral** (device removed on disconnect)
+- Keys have **TTL** (expire even if unused)
+- Keys are **pre-authorized** (no manual approval step)
+
+### Network Access
+
+Devices joining via Creddy are controlled by:
+1. **ACL tags** — what they can access on the tailnet
+2. **Ephemeral flag** — auto-removed on disconnect
+3. **TTL** — limited window to use the key
+
+### Best Practices
+
+- Use specific tags per use case (`tag:ci`, `tag:staging-agent`)
+- Keep TTLs short for untrusted environments
+- Review Tailscale admin logs for unusual join patterns
+- Use ACLs to limit blast radius
+
+## Troubleshooting
+
+### "invalid API key"
+
+Ensure your API key:
+- Is a valid Tailscale API key (starts with `tskey-api-`)
+- Has permission to create auth keys
+- Hasn't expired
+
+### "tailnet not found"
+
+Check the tailnet name matches exactly:
+- For personal accounts: your email domain or `gmail.com`
+- For organizations: the organization name from admin console
+
+### Device not joining
+
+1. Check key hasn't expired: `creddy get tailscale` generates fresh key
+2. Check Tailscale daemon is running: `tailscale status`
+3. Check for conflicting state: `tailscale logout` then retry
+
+### ACL errors
+
+If device joins but can't reach services:
+1. Verify tags are applied: `tailscale status`
+2. Check ACL rules allow the tag to access the destination
+3. Review Tailscale admin logs for denied connections
