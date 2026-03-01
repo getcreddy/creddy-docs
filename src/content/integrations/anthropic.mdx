@@ -1,38 +1,38 @@
 # Anthropic Integration
 
-Creddy's Anthropic integration creates real, ephemeral API keys on-demand. Unlike proxy-based solutions, agents get actual `sk-ant-...` keys that work with any client.
+Creddy's Anthropic plugin provides ephemeral access tokens via a built-in proxy. Agents get short-lived `crd_xxx` tokens that work through the proxy, while Creddy manages your actual API key.
 
 ## How It Works
-
-Anthropic doesn't offer programmatic key creation via API, so Creddy uses browser session automation:
-
-1. You authenticate Creddy with your Anthropic account (one-time setup)
-2. Agent requests `creddy get anthropic`
-3. Creddy creates a real API key via the Console API
-4. Returns `sk-ant-...` key to the agent
-5. On TTL expiry or unenroll → Creddy archives the key
 
 ```
 ┌─────────────┐    creddy get anthropic    ┌─────────────┐
 │   Agent     │ ─────────────────────────▶ │   Creddy    │
 │             │ ◀───────────────────────── │   Server    │
-└─────────────┘    sk-ant-xxx (1h TTL)     └──────┬──────┘
+└─────────────┘    crd_xxx (10 min TTL)    └──────┬──────┘
        │                                          │
-       │ Claude API calls                         │ Console API
-       ▼                                          │ (session auth)
-┌─────────────┐                                   ▼
-│  Anthropic  │                            ┌─────────────┐
-│     API     │                            │  Anthropic  │
-└─────────────┘                            │   Console   │
-                                           └─────────────┘
+       │ API calls via proxy                      │ Validates token
+       ▼                                          │ Swaps for real key
+┌─────────────┐                            ┌──────┴──────┐
+│   Plugin    │ ─────────────────────────▶ │  Anthropic  │
+│   Proxy     │    sk-ant-xxx (your key)   │     API     │
+└─────────────┘                            └─────────────┘
 ```
 
-The key difference from proxy solutions: **the agent gets a real API key** that works with any client (Claude Code, SDKs, curl), and Creddy manages its lifecycle.
+1. Agent requests `creddy get anthropic`
+2. Plugin generates a short-lived `crd_xxx` token
+3. Agent configures `ANTHROPIC_BASE_URL` to point at the proxy
+4. Agent makes API calls with the `crd_xxx` token
+5. Proxy validates the token, swaps it for your real API key, forwards to Anthropic
+6. On TTL expiry or revocation → token stops working immediately
+
+**Key benefits:**
+- Your real API key never leaves the server
+- Tokens can be instantly revoked
+- Full audit trail of which agent used what, when
 
 ## Requirements
 
-- Anthropic account (any plan)
-- A machine with a browser (laptop/desktop) for initial setup
+- Anthropic API key (`sk-ant-...`) from [console.anthropic.com](https://console.anthropic.com/)
 
 ## Installation
 
@@ -42,79 +42,35 @@ creddy plugin install anthropic
 
 ## Server Setup
 
-### 1. Add the Backend
+Add the backend with your Anthropic API key:
 
 ```bash
 creddy backend add anthropic
 ```
 
-Creddy detects that Anthropic requires browser authentication and walks you through:
+You'll be prompted for your API key:
 
 ```
 Adding backend 'anthropic'...
 
-Anthropic requires browser authentication to create API keys.
-On your laptop run:
+api_key (Anthropic API key): sk-ant-api03-xxxxx
 
-  npx @creddy/auth http://your-server:8400/v1/auth/anthropic/abc123
-
-Waiting for auth...
+✓ Backend 'anthropic' added.
+  Proxy running on :8401
 ```
 
-### 2. Complete Auth on Your Laptop
-
-On a machine with a browser (your laptop), run the provided command:
+Or pass it directly:
 
 ```bash
-npx @creddy/auth http://your-server:8400/v1/auth/anthropic/abc123
+creddy backend add anthropic --api-key sk-ant-api03-xxxxx
 ```
 
-This:
-1. Opens a browser to console.anthropic.com
-2. You log in normally (Google, email, 2FA — whatever you use)
-3. Captures the session cookie
-4. Sends it directly to your Creddy server
+### Proxy Port
 
-```
-🔐 Creddy Auth Helper
-
-Provider: anthropic
-Server: http://your-server:8400/v1/auth/anthropic/abc123
-
-Opening browser...
-Please log in to Anthropic.
-
-Waiting for login...
-✓ Login detected!
-✓ Session sent to Creddy server!
-```
-
-Back on your server:
-
-```
-✓ Connected to Anthropic!
-Backend 'anthropic' added. Session expires in ~30 days.
-```
-
-### 3. Session Renewal
-
-Sessions last approximately 30 days. When expired, Creddy prompts during `creddy get`:
+The plugin runs a proxy server (default port 8401). To use a different port:
 
 ```bash
-$ creddy get anthropic
-⚠️ Anthropic session expired. Re-authenticate? [Y/n]
-
-On your laptop run:
-  npx @creddy/auth http://your-server:8400/v1/auth/anthropic/xyz789
-
-Waiting... ✓
-sk-ant-api03-xxxxx
-```
-
-Or manually re-authenticate:
-
-```bash
-creddy backend configure anthropic
+creddy backend add anthropic --api-key sk-ant-xxx --proxy-port 9000
 ```
 
 ## Agent Enrollment
@@ -126,36 +82,47 @@ creddy enroll --server http://creddy:8400 --name my-agent \
   --can anthropic
 ```
 
-## Requesting Keys
+## Requesting Tokens
 
 Once enrolled and approved:
 
 ```bash
-# Get an API key (default 10 min TTL)
+# Get a token (default 10 min TTL)
 creddy get anthropic
 
-# Get a key with custom TTL
-creddy get anthropic --ttl 1h
-
-# Use it immediately
-export ANTHROPIC_API_KEY=$(creddy get anthropic)
-claude "Hello, world"
+# Get a token with custom TTL (max 1 hour)
+creddy get anthropic --ttl 30m
 ```
 
-### Using with Claude Code
+## Using the Proxy
+
+The proxy endpoint is `http://creddy-host:8401` (or your custom port).
+
+### Environment Setup
+
+```bash
+export ANTHROPIC_API_KEY=$(creddy get anthropic)
+export ANTHROPIC_BASE_URL=http://creddy-host:8401
+```
+
+### With Claude CLI
 
 ```bash
 export ANTHROPIC_API_KEY=$(creddy get anthropic --ttl 1h)
-claude code "implement a fibonacci function"
+export ANTHROPIC_BASE_URL=http://creddy-host:8401
+
+claude "Hello, world"
 ```
 
-### Using with Python SDK
+### With Python SDK
 
 ```python
 import anthropic
 
-# Key from environment (set via creddy get)
-client = anthropic.Anthropic()
+client = anthropic.Anthropic(
+    api_key="crd_xxx",  # from creddy get
+    base_url="http://creddy-host:8401"
+)
 
 message = client.messages.create(
     model="claude-sonnet-4-20250514",
@@ -164,118 +131,138 @@ message = client.messages.create(
 )
 ```
 
-## Key Lifecycle
-
-### TTL Expiry
-
-Keys are archived when their TTL expires:
+### With curl
 
 ```bash
-# Request a 30-minute key
-creddy get anthropic --ttl 30m
+TOKEN=$(creddy get anthropic)
 
-# After 30 minutes, Creddy:
-# 1. Sets the key status to "archived" via Admin API
-# 2. Removes it from active credentials
+curl http://creddy-host:8401/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $TOKEN" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 256,
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
 ```
 
-### Agent Unenroll
+## Token Lifecycle
 
-When an agent is unenrolled, all their active keys are archived:
+### TTL Constraints
+
+- **Minimum TTL:** 1 minute
+- **Maximum TTL:** 1 hour
+- **Default TTL:** 10 minutes
+
+### Expiry
+
+When a token's TTL expires, the proxy immediately rejects it:
+
+```bash
+# Request a 5-minute token
+creddy get anthropic --ttl 5m
+
+# After 5 minutes, requests fail:
+curl http://creddy-host:8401/v1/messages -H "x-api-key: crd_xxx"
+# 401 Unauthorized: token expired
+```
+
+### Revocation
+
+When an agent is unenrolled, all their tokens are immediately invalidated:
 
 ```bash
 creddy unenroll my-agent
+# All crd_xxx tokens for my-agent stop working
 ```
 
-This provides immediate revocation.
+## Streaming Support
 
-## Manual Authentication (Fallback)
+The proxy fully supports SSE streaming for `/v1/messages`:
 
-If you can't use `@creddy/auth` (no browser available, network restrictions), you can manually provide the session:
+```python
+import anthropic
 
-```bash
-creddy backend add anthropic --manual
-```
+client = anthropic.Anthropic(
+    api_key="crd_xxx",
+    base_url="http://creddy-host:8401"
+)
 
-Then:
-1. Log into console.anthropic.com in your browser
-2. Open DevTools → Application → Cookies
-3. Copy the `sessionKey` value
-4. Paste when prompted
-
-```
-Adding backend 'anthropic' (manual mode)...
-
-1. Log into console.anthropic.com
-2. Open DevTools (F12) → Application → Cookies
-3. Copy the 'sessionKey' value
-
-Paste sessionKey: █
-
-✓ Backend 'anthropic' added.
+with client.messages.stream(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": "Write a haiku"}]
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
 ```
 
 ## Security Considerations
 
-### Session Security
+### API Key Protection
 
-The Anthropic session stored in Creddy can create API keys. Protect it:
+Your real API key (`sk-ant-xxx`) is:
+- Stored encrypted in Creddy's database
+- Never exposed to agents
+- Only used server-side by the proxy
 
-- Run Creddy on a trusted server
-- Use Tailscale, VPN, or localhost only
-- The session is stored encrypted at rest
+### Token Security
 
-### Key Visibility
+`crd_xxx` tokens are:
+- Short-lived (max 1 hour)
+- Scoped to specific agents
+- Instantly revocable
+- Only valid through the Creddy proxy (not directly with Anthropic)
 
-Anthropic API keys have full access to your API quota. Consider:
+### Network Security
 
-- Short TTLs for untrusted agents
-- Monitoring usage in console.anthropic.com
-- Using separate Anthropic accounts for different trust levels
+The proxy should only be accessible to authorized agents:
+- Run Creddy on a private network or Tailscale
+- Use firewall rules to restrict access
+- Consider TLS termination in front of the proxy
 
-### Browser Session Risks
+## Comparison with Direct API Keys
 
-The `@creddy/auth` flow:
-- Runs entirely on YOUR laptop
-- Sends data directly to YOUR Creddy server
-- No third-party services involved
-- Session cookie is transmitted over HTTPS (if your server uses it)
-
-## Comparison with Static Keys
-
-| Aspect | Static Key | Creddy Ephemeral |
-|--------|-----------|------------------|
+| Aspect | Direct API Key | Creddy Proxy |
+|--------|---------------|--------------|
 | Lifetime | Forever | Minutes to hours |
-| Revocation | Manual in Console | Automatic on TTL/unenroll |
+| Revocation | Manual in Console | Instant via CLI |
+| Key exposure | Agents see real key | Agents see `crd_xxx` only |
 | Audit | Check Console | Full trail in Creddy |
-| Agent compromise | Permanent exposure | Limited window |
-| Requires | Console access | One-time auth |
+| Agent compromise | Full API access | Limited window + revoke |
 
 ## Troubleshooting
 
-### "Session expired"
+### "401 Unauthorized" from proxy
 
-Re-authenticate:
+Check token validity:
 ```bash
-creddy anthropic login
+# Is the token format correct?
+echo $ANTHROPIC_API_KEY  # Should be crd_xxx
+
+# Is it expired?
+creddy active  # Shows active tokens with expiry
 ```
 
-### "Failed to create API key"
+### "Connection refused" to proxy
 
-Check session validity:
+Ensure the proxy is running:
 ```bash
-creddy anthropic status
+creddy backend status anthropic
 ```
 
-If invalid, re-authenticate.
+Check the port is accessible:
+```bash
+curl http://creddy-host:8401/health
+```
 
-### @creddy/auth can't reach server
+### Streaming not working
 
-Ensure your Creddy server is accessible from your laptop:
-- Same network / VPN
-- Tailscale
-- Port forwarding (temporarily)
+Ensure your HTTP client supports SSE and doesn't buffer responses. The proxy passes through `Transfer-Encoding: chunked` and `Content-Type: text/event-stream` correctly.
 
-### Browser doesn't open
+### Rate limits
 
-`@creddy/auth` requires a display. If running on a headless machine, use the `--manual` flag instead.
+Rate limits apply to your underlying Anthropic API key. If you hit limits, all agents using that key are affected. Consider:
+- Using separate Anthropic accounts for different environments
+- Adding rate limiting at the Creddy proxy level (coming soon)
