@@ -4,8 +4,8 @@ export default {
   openai: 'OpenAI',
   anthropic: 'Anthropic',
   tailscale: 'Tailscale',
+  daytona: 'Daytona',
   building: 'Building Custom Integrations',
-  // Hide coming soon pages from sidebar
   dockerhub: { display: 'hidden' },
   doppler: { display: 'hidden' },
   replicated: { display: 'hidden' },
