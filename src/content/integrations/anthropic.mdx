@@ -1,6 +1,6 @@
 # Anthropic Integration
 
-Creddy's Anthropic plugin provides ephemeral access tokens via a built-in proxy. Agents get short-lived `crd_xxx` tokens that work through the proxy, while Creddy manages your actual API key.
+Creddy's Anthropic plugin provides ephemeral access tokens via a built-in proxy. Agents get short-lived `crd_xxx` tokens that work through Creddy's proxy endpoint, while your actual API key stays secure on the server.
 
 ## How It Works
 
@@ -8,25 +8,35 @@ Creddy's Anthropic plugin provides ephemeral access tokens via a built-in proxy.
 ┌─────────────┐    creddy get anthropic    ┌─────────────┐
 │   Agent     │ ─────────────────────────▶ │   Creddy    │
 │             │ ◀───────────────────────── │   Server    │
-└─────────────┘    crd_xxx (10 min TTL)    └──────┬──────┘
+└─────────────┘    crd_xxx (10 min TTL)    │   :8400     │
+       │                                   └──────┬──────┘
        │                                          │
-       │ API calls via proxy                      │ Validates token
-       ▼                                          │ Swaps for real key
-┌─────────────┐                            ┌──────┴──────┐
-│   Plugin    │ ─────────────────────────▶ │  Anthropic  │
-│   Proxy     │    sk-ant-xxx (your key)   │     API     │
-└─────────────┘                            └─────────────┘
+       │ POST /v1/proxy/anthropic/v1/messages     │
+       │─────────────────────────────────────────▶│
+       │                                          │
+       │                                   ┌──────┴──────┐
+       │                                   │  Anthropic  │
+       │                                   │   Plugin    │
+       │                                   └──────┬──────┘
+       │                                          │ Validates crd_xxx
+       │                                          │ Swaps for sk-ant-xxx
+       │                                          ▼
+       │                                   ┌─────────────┐
+       │◀──────────────────────────────────│  Anthropic  │
+       │           response                │     API     │
+                                           └─────────────┘
 ```
 
 1. Agent requests `creddy get anthropic`
 2. Plugin generates a short-lived `crd_xxx` token
-3. Agent configures `ANTHROPIC_BASE_URL` to point at the proxy
-4. Agent makes API calls with the `crd_xxx` token
-5. Proxy validates the token, swaps it for your real API key, forwards to Anthropic
+3. Agent makes API calls to `http://creddy:8400/v1/proxy/anthropic/...`
+4. Creddy routes to the Anthropic plugin
+5. Plugin validates the token, swaps it for your real API key, forwards to Anthropic
 6. On TTL expiry or revocation → token stops working immediately
 
 **Key benefits:**
 - Your real API key never leaves the server
+- Agents only need to know the main Creddy endpoint (no extra ports)
 - Tokens can be instantly revoked
 - Full audit trail of which agent used what, when
 
@@ -56,21 +66,12 @@ Adding backend 'anthropic'...
 api_key (Anthropic API key): sk-ant-api03-xxxxx
 
 ✓ Backend 'anthropic' added.
-  Proxy running on :8401
 ```
 
 Or pass it directly:
 
 ```bash
 creddy backend add anthropic --api-key sk-ant-api03-xxxxx
-```
-
-### Proxy Port
-
-The plugin runs a proxy server (default port 8401). To use a different port:
-
-```bash
-creddy backend add anthropic --api-key sk-ant-xxx --proxy-port 9000
 ```
 
 ## Agent Enrollment
@@ -96,20 +97,20 @@ creddy get anthropic --ttl 30m
 
 ## Using the Proxy
 
-The proxy endpoint is `http://creddy-host:8401` (or your custom port).
+All API calls go through `http://creddy:8400/v1/proxy/anthropic/...`
 
 ### Environment Setup
 
 ```bash
 export ANTHROPIC_API_KEY=$(creddy get anthropic)
-export ANTHROPIC_BASE_URL=http://creddy-host:8401
+export ANTHROPIC_BASE_URL=http://creddy:8400/v1/proxy/anthropic
 ```
 
 ### With Claude CLI
 
 ```bash
 export ANTHROPIC_API_KEY=$(creddy get anthropic --ttl 1h)
-export ANTHROPIC_BASE_URL=http://creddy-host:8401
+export ANTHROPIC_BASE_URL=http://creddy:8400/v1/proxy/anthropic
 
 claude "Hello, world"
 ```
@@ -121,7 +122,7 @@ import anthropic
 
 client = anthropic.Anthropic(
     api_key="crd_xxx",  # from creddy get
-    base_url="http://creddy-host:8401"
+    base_url="http://creddy:8400/v1/proxy/anthropic"
 )
 
 message = client.messages.create(
@@ -136,7 +137,7 @@ message = client.messages.create(
 ```bash
 TOKEN=$(creddy get anthropic)
 
-curl http://creddy-host:8401/v1/messages \
+curl http://creddy:8400/v1/proxy/anthropic/v1/messages \
   -H "Content-Type: application/json" \
   -H "x-api-key: $TOKEN" \
   -H "anthropic-version: 2023-06-01" \
@@ -164,7 +165,6 @@ When a token's TTL expires, the proxy immediately rejects it:
 creddy get anthropic --ttl 5m
 
 # After 5 minutes, requests fail:
-curl http://creddy-host:8401/v1/messages -H "x-api-key: crd_xxx"
 # 401 Unauthorized: token expired
 ```
 
@@ -174,7 +174,7 @@ When an agent is unenrolled, all their tokens are immediately invalidated:
 
 ```bash
 creddy unenroll my-agent
-# All crd_xxx tokens for my-agent stop working
+# All crd_xxx tokens for my-agent stop working instantly
 ```
 
 ## Streaming Support
@@ -186,7 +186,7 @@ import anthropic
 
 client = anthropic.Anthropic(
     api_key="crd_xxx",
-    base_url="http://creddy-host:8401"
+    base_url="http://creddy:8400/v1/proxy/anthropic"
 )
 
 with client.messages.stream(
@@ -205,7 +205,7 @@ with client.messages.stream(
 Your real API key (`sk-ant-xxx`) is:
 - Stored encrypted in Creddy's database
 - Never exposed to agents
-- Only used server-side by the proxy
+- Only used server-side by the plugin
 
 ### Token Security
 
@@ -213,14 +213,11 @@ Your real API key (`sk-ant-xxx`) is:
 - Short-lived (max 1 hour)
 - Scoped to specific agents
 - Instantly revocable
-- Only valid through the Creddy proxy (not directly with Anthropic)
+- Only valid through Creddy's proxy (not directly with Anthropic)
 
 ### Network Security
 
-The proxy should only be accessible to authorized agents:
-- Run Creddy on a private network or Tailscale
-- Use firewall rules to restrict access
-- Consider TLS termination in front of the proxy
+Run Creddy on a private network or Tailscale. The proxy endpoint is on the same port as the rest of Creddy's API (default 8400).
 
 ## Comparison with Direct API Keys
 
@@ -245,16 +242,11 @@ echo $ANTHROPIC_API_KEY  # Should be crd_xxx
 creddy active  # Shows active tokens with expiry
 ```
 
-### "Connection refused" to proxy
+### "502 Bad Gateway"
 
-Ensure the proxy is running:
+The Anthropic plugin proxy isn't reachable. Check:
 ```bash
 creddy backend status anthropic
-```
-
-Check the port is accessible:
-```bash
-curl http://creddy-host:8401/health
 ```
 
 ### Streaming not working
@@ -263,6 +255,4 @@ Ensure your HTTP client supports SSE and doesn't buffer responses. The proxy pas
 
 ### Rate limits
 
-Rate limits apply to your underlying Anthropic API key. If you hit limits, all agents using that key are affected. Consider:
-- Using separate Anthropic accounts for different environments
-- Adding rate limiting at the Creddy proxy level (coming soon)
+Rate limits apply to your underlying Anthropic API key. If you hit limits, all agents using that key are affected. Consider using separate Anthropic accounts for different environments.
