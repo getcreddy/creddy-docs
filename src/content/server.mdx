@@ -249,6 +249,101 @@ creddy server --oidc-issuer https://creddy.tail1234.ts.net
 
 ---
 
+## Remote Agent Provisioning
+
+For automated workflows, set up a **provisioner** agent that can create other agents remotely.
+
+### 1. Create the Provisioner (on server)
+
+```bash
+# SSH into your Creddy server
+creddy agent create provisioner --scopes "admin:agents:*"
+```
+
+Output:
+```json
+{
+  "name": "provisioner",
+  "token": "ckr_abc123...",
+  "oidc": {
+    "client_id": "agent_f8e7d6c5b4a3",
+    "client_secret": "cks_xyz789..."
+  }
+}
+```
+
+Save the OIDC credentials securely (e.g., in your secrets manager).
+
+### 2. Use from Your Automation
+
+Your provisioning system uses these credentials to create task agents:
+
+```bash
+# Get admin token
+ADMIN_TOKEN=$(curl -s -X POST https://creddy.example.com/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=$PROVISIONER_CLIENT_ID" \
+  -d "client_secret=$PROVISIONER_CLIENT_SECRET" \
+  | jq -r .access_token)
+
+# Create a task agent with 4-hour TTL
+AGENT_CREDS=$(curl -s -X POST https://creddy.example.com/v1/admin/agents \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "task-12345",
+    "scopes": ["github:owner/repo"],
+    "expires_in": "4h"
+  }')
+
+# Extract credentials for the task agent
+AGENT_CLIENT_ID=$(echo $AGENT_CREDS | jq -r '.oidc.client_id')
+AGENT_CLIENT_SECRET=$(echo $AGENT_CREDS | jq -r '.oidc.client_secret')
+
+# Pass to your agent process...
+```
+
+### 3. Agent Workflow
+
+The task agent:
+1. Authenticates with its OIDC credentials
+2. Requests backend credentials as needed
+3. Does its work
+4. Self-deletes when done (or TTL expires as safety net)
+
+```bash
+# Agent gets its own token
+TOKEN=$(curl -s -X POST https://creddy.example.com/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=$AGENT_CLIENT_ID" \
+  -d "client_secret=$AGENT_CLIENT_SECRET" \
+  | jq -r .access_token)
+
+# Get GitHub credential
+GITHUB_TOKEN=$(curl -s https://creddy.example.com/v1/credentials/github \
+  -H "Authorization: Bearer $TOKEN" \
+  | jq -r .token)
+
+# ... do work ...
+
+# Clean up
+curl -X DELETE https://creddy.example.com/v1/self \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Admin Scopes Reference
+
+| Scope | Permission |
+|-------|------------|
+| `admin:agents:read` | List agents |
+| `admin:agents:write` | Create/delete agents |
+| `admin:agents:*` | Both (recommended for provisioner) |
+| `admin:*` | Full admin access |
+
+See [Concepts → Admin Scopes](/docs/concepts#admin-scopes) for the complete list.
+
+---
+
 ## Security Considerations
 
 1. **Use TLS** — Required for OIDC, recommended always
