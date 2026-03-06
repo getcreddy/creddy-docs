@@ -1,139 +1,260 @@
 # Concepts
 
-Understanding Creddy's core concepts.
+Core concepts in Creddy.
 
-## Credentials
+## Agents
 
-A **credential** is a short-lived token that grants access to an external service. Credentials are:
+An **agent** is an identity that can request credentials. Typically an AI assistant, CI runner, or automated script.
 
-- **Ephemeral** — They expire automatically
-- **Scoped** — They grant only specific permissions
-- **Signed** — They're cryptographically signed JWTs
-- **Auditable** — Every issuance is logged
-
-### Anatomy of a Credential
-
-```json
-{
-  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
-  "expires_at": "2024-01-15T16:00:00Z",
-  "backend": "github",
-  "scopes": ["repo:read", "issues:write"],
-  "metadata": {
-    "agent_id": "my-agent",
-    "task": "update-readme"
-  }
-}
+```bash
+creddy agent create my-bot --scopes "github:owner/repo"
 ```
+
+Each agent has:
+- **Name** — Human-readable identifier
+- **Scopes** — What backends/resources it can access
+- **Credentials** — How it authenticates (OIDC or legacy token)
+
+### Agent Credentials
+
+When created, agents receive two sets of credentials:
+
+| Type | Format | Use |
+|------|--------|-----|
+| Legacy Token | `ckr_abc123...` | Direct API access |
+| OIDC | `client_id` + `client_secret` | OAuth flow, federation |
+
+Both work for all API endpoints. See [Authentication](/docs/authentication) for details.
+
+---
 
 ## Backends
 
-A **backend** represents an external service that Creddy can issue credentials for. Backends are configured with the long-lived credentials that Creddy uses to generate short-lived tokens.
+A **backend** is an external service Creddy can issue credentials for.
 
-### Supported Backend Types
+```bash
+# Install plugin
+creddy plugin install github
 
-| Type | Description |
-|------|-------------|
-| `github` | GitHub personal access tokens or app tokens |
-| `aws` | AWS IAM credentials (STS temporary credentials) |
-| `generic` | Generic secret injection |
-
-### Backend Configuration
-
-```yaml
-backends:
-  my-github:
-    type: github
-    token: ghp_xxxxxxxxxxxx
-    default_ttl: 1h
-    max_ttl: 24h
-    allowed_scopes:
-      - repo:read
-      - repo:write
-      - issues:*
+# Configure backend
+creddy backend add github \
+  --app-id 123456 \
+  --private-key ./key.pem
 ```
+
+Creddy holds the master credentials. Agents get short-lived tokens.
+
+### Available Backends
+
+| Backend | Credential Type |
+|---------|-----------------|
+| `github` | Installation tokens via GitHub App |
+| `aws` | STS temporary credentials |
+| `doppler` | Service tokens |
+| `anthropic` | Ephemeral API keys |
+| `openai` | Ephemeral API keys |
+| `tailscale` | Auth keys |
+
+See [Integrations](/docs/integrations) for setup guides.
+
+---
 
 ## Scopes
 
-**Scopes** define what a credential can do. They're backend-specific and follow the principle of least privilege.
+**Scopes** define what an agent can access. Format: `backend:resource:permission`
 
-### Scope Patterns
+### Examples
 
-- `repo:read` — Exact match
-- `repo:*` — Wildcard (all repo permissions)
-- `*` — All scopes (use carefully)
+```bash
+# Specific repo, read-only
+github:owner/repo:read
 
-### Requesting Scopes
+# All repos in org, read-write
+github:myorg/*:write
 
-When requesting a credential, specify only the scopes you need:
+# Any GitHub access
+github:*
 
+# Multiple backends
+github:owner/repo doppler:project/config
+```
+
+### Wildcards
+
+- `github:*` — All GitHub permissions
+- `github:owner/*` — All repos in owner
+- `*` — Everything (use carefully)
+
+### Scope Validation
+
+When an agent requests credentials, Creddy checks:
+1. Is the backend in the agent's scopes?
+2. Is the specific resource allowed?
+3. Is the permission level allowed?
+
+```bash
+# Agent has: github:owner/repo:read
+# Requests: github:owner/repo  ✅ allowed
+# Requests: github:other/repo  ❌ denied
+```
+
+---
+
+## Credentials (Ephemeral Tokens)
+
+When an agent requests a credential, Creddy issues a short-lived token:
+
+```bash
+curl https://creddy.example.com/v1/credentials/github?ttl=10m \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Response:
 ```json
 {
-  "backend": "github",
-  "scopes": ["repo:read", "issues:write"]
+  "token": "ghs_xxxxxxxxxxxx",
+  "expires_at": "2026-03-06T13:10:00Z",
+  "ttl": "10m0s"
 }
 ```
 
-If no scopes are specified, the backend's default scopes are used.
+### TTL (Time to Live)
 
-## TTL (Time to Live)
+How long the credential is valid:
 
-**TTL** defines how long a credential is valid. Shorter is better.
+| Use Case | Recommended TTL |
+|----------|-----------------|
+| Quick API call | 5–15 minutes |
+| CI job | 1 hour |
+| Long task | 2–4 hours |
 
-- **Minimum**: 1 minute
-- **Default**: Configured per backend (typically 1 hour)
-- **Maximum**: Configured per backend (typically 24 hours)
+Default: 10 minutes. Maximum depends on backend.
 
-### Choosing a TTL
+### Revocation
 
-| Task Type | Recommended TTL |
-|-----------|-----------------|
-| Quick API call | 5-15 minutes |
-| CI/CD job | 1 hour |
-| Long-running task | 2-4 hours |
-| Background job | Match job timeout |
+Some backends support early revocation:
+
+```bash
+# List active credentials
+creddy list
+
+# Revoke one
+creddy revoke <credential-id>
+```
+
+Otherwise, credentials expire automatically.
+
+---
+
+## OIDC
+
+Creddy is an OpenID Connect provider. Agents can authenticate using standard OAuth 2.0.
+
+### Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `/.well-known/openid-configuration` | Discovery metadata |
+| `/.well-known/jwks.json` | Public keys |
+| `/oauth/token` | Get access token |
+| `/oauth/userinfo` | Get agent info |
+
+### Token Types
+
+**Access Token** — JWT for API authentication
+```json
+{
+  "sub": "agent-uuid",
+  "agent_name": "my-bot",
+  "scopes": ["github:owner/repo"],
+  "exp": 1709740800
+}
+```
+
+**ID Token** — JWT for identity verification (federation)
+
+See [OIDC Provider](/docs/oidc) for full details.
+
+---
 
 ## Audit Log
 
-Every credential issuance is logged in the **audit log**:
+Every credential operation is logged:
+
+```bash
+creddy audit list --since 24h
+```
 
 ```json
 {
-  "timestamp": "2024-01-15T15:00:00Z",
-  "action": "credential_issued",
+  "timestamp": "2026-03-06T12:30:00Z",
+  "action": "token_issued",
+  "agent": "my-bot",
   "backend": "github",
-  "scopes": ["repo:read"],
-  "ttl": "1h",
-  "metadata": {
-    "agent_id": "my-agent",
-    "ip": "192.168.1.100"
-  }
+  "ttl": "10m",
+  "ip": "100.64.0.1"
 }
 ```
 
-Query the audit log via the API or CLI:
+### Logged Events
 
-```bash
-creddy audit list --backend github --since 24h
-```
+- `agent_created` — New agent enrolled
+- `token_issued` — Credential generated
+- `token_revoked` — Credential revoked early
+- `scopes_amended` — Agent scopes changed
+
+---
 
 ## Signing Keys
 
-Creddy uses **Ed25519** keys to sign credentials. Keys are:
+Creddy uses cryptographic keys for:
 
-- Generated automatically on first run
-- Stored in the data directory
-- Rotatable without downtime
+1. **OIDC Tokens** — RS256 JWTs
+2. **Git Commits** — GPG keys per agent
 
-### Key Rotation
+### OIDC Keys
 
 ```bash
-# Generate new key (old key remains valid)
-creddy keys rotate
+# View keys
+curl https://creddy.example.com/.well-known/jwks.json
 
-# List all keys
-creddy keys list
+# Rotate (admin)
+creddy admin keys rotate
+```
 
-# Revoke old key (after grace period)
-creddy keys revoke <key-id>
+Old keys remain valid during grace period.
+
+### Git Signing Keys
+
+Each agent gets a GPG key for signed commits:
+
+```bash
+# Agent retrieves their key
+creddy signing-key --format git
+```
+
+Returns key + git config for `commit.gpgsign`.
+
+---
+
+## Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      CREDDY SERVER                          │
+│                                                             │
+│  Backends         Agents           OIDC                     │
+│  ┌─────────┐      ┌─────────┐      ┌─────────┐             │
+│  │ github  │      │ my-bot  │      │ keys    │             │
+│  │ aws     │      │ ci-job  │      │ tokens  │             │
+│  │ doppler │      │ deploy  │      │ jwks    │             │
+│  └─────────┘      └─────────┘      └─────────┘             │
+│       │                │                │                   │
+│       └────────────────┼────────────────┘                   │
+│                        │                                    │
+│              ┌─────────┴─────────┐                         │
+│              │   Audit Log       │                         │
+│              │   (all actions)   │                         │
+│              └───────────────────┘                         │
+└─────────────────────────────────────────────────────────────┘
 ```

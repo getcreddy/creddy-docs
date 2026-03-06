@@ -1,0 +1,282 @@
+# OIDC Authentication
+
+Creddy implements OpenID Connect (OIDC), allowing agents to authenticate using standard OAuth 2.0 flows. This enables federation with AWS, GCP, and other services that support OIDC identity providers.
+
+## Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CREDDY SERVER                           │
+│                    (your-server:8400)                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  /.well-known/openid-configuration  ← OIDC Discovery            │
+│  /.well-known/jwks.json             ← Public keys (for verify)  │
+│  /oauth/token                       ← Get JWT access token      │
+│  /v1/credentials/{backend}          ← Get ephemeral credentials │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │
+              ┌───────────────┴───────────────┐
+              │                               │
+     ┌────────┴────────┐             ┌────────┴────────┐
+     │   AI Agent      │             │   AWS / GCP     │
+     │  (your bot)     │             │  (federation)   │
+     │                 │             │                 │
+     │ Uses tokens to  │             │ Trusts Creddy   │
+     │ get credentials │             │ as identity     │
+     └─────────────────┘             │ provider        │
+                                     └─────────────────┘
+```
+
+## Enable OIDC
+
+Start the server with an issuer URL:
+
+```bash
+creddy server --oidc-issuer https://creddy.example.com
+```
+
+The issuer URL must be reachable by agents and any federated services. It goes into the `iss` claim of all tokens.
+
+## Credential Types
+
+When you create an agent, Creddy generates two sets of credentials:
+
+| Type | Format | Use Case |
+|------|--------|----------|
+| **Legacy Token** | `ckr_xxx...` | Simple auth, direct API access |
+| **OIDC Credentials** | `client_id` + `client_secret` | Standard OAuth, federation |
+
+```bash
+creddy agent create my-agent --scopes github
+```
+
+Output:
+```json
+{
+  "name": "my-agent",
+  "token": "ckr_abc123...",           // Legacy
+  "oidc": {
+    "client_id": "agent_f8e7d6",      // OIDC
+    "client_secret": "cks_xyz789..."
+  }
+}
+```
+
+## Authentication Flows
+
+### OIDC Flow (Recommended)
+
+**Step 1: Get Access Token**
+
+```bash
+curl -X POST https://creddy.example.com/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=agent_f8e7d6" \
+  -d "client_secret=cks_xyz789" \
+  -d "scope=openid github"
+```
+
+Response:
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1In0...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1In0...",
+  "scope": "openid github"
+}
+```
+
+**Step 2: Use Access Token**
+
+```bash
+# Get ephemeral GitHub token
+curl https://creddy.example.com/v1/credentials/github?ttl=10m \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..."
+
+# Check agent status
+curl https://creddy.example.com/v1/status \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..."
+```
+
+### Legacy Flow
+
+Skip the OAuth exchange, use the `ckr_` token directly:
+
+```bash
+curl https://creddy.example.com/v1/credentials/github?ttl=10m \
+  -H "Authorization: Bearer ckr_abc123..."
+```
+
+Both flows work on all endpoints. OIDC is preferred for:
+- Federation (AWS, GCP trust relationships)
+- Short-lived tokens (1 hour vs permanent)
+- Audit trails (JWT contains identity claims)
+
+## Token Contents
+
+### Access Token
+
+A JWT containing:
+```json
+{
+  "iss": "https://creddy.example.com",
+  "sub": "agent-uuid",
+  "exp": 1709740800,
+  "iat": 1709737200,
+  "agent_id": "agent-uuid",
+  "agent_name": "my-agent",
+  "scopes": ["github:owner/repo"],
+  "client_id": "agent_f8e7d6"
+}
+```
+
+### ID Token
+
+Same as access token, plus:
+```json
+{
+  "auth_time": 1709737200,
+  "aud": ["https://creddy.example.com"]
+}
+```
+
+## OIDC Endpoints
+
+### Discovery
+
+```bash
+curl https://creddy.example.com/.well-known/openid-configuration
+```
+
+Returns standard OIDC metadata including endpoints, supported algorithms, and claims.
+
+### JWKS
+
+```bash
+curl https://creddy.example.com/.well-known/jwks.json
+```
+
+Returns public keys for verifying token signatures. Keys are RS256.
+
+### Token
+
+```bash
+curl -X POST https://creddy.example.com/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=..." \
+  -d "client_secret=..."
+```
+
+### UserInfo
+
+```bash
+curl https://creddy.example.com/oauth/userinfo \
+  -H "Authorization: Bearer <access_token>"
+```
+
+Returns agent identity claims.
+
+## AWS Federation
+
+Creddy can act as an OIDC identity provider for AWS IAM:
+
+**1. Create OIDC Provider in AWS**
+
+```bash
+aws iam create-open-id-connect-provider \
+  --url https://creddy.example.com \
+  --client-id-list https://creddy.example.com \
+  --thumbprint-list <certificate-thumbprint>
+```
+
+**2. Create IAM Role with Trust Policy**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {
+      "Federated": "arn:aws:iam::ACCOUNT:oidc-provider/creddy.example.com"
+    },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "creddy.example.com:sub": "agent-uuid"
+      }
+    }
+  }]
+}
+```
+
+**3. Agent Assumes Role**
+
+```bash
+# Get Creddy ID token
+TOKEN=$(curl -s -X POST https://creddy.example.com/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=$CLIENT_ID" \
+  -d "client_secret=$CLIENT_SECRET" \
+  | jq -r .id_token)
+
+# Assume AWS role
+aws sts assume-role-with-web-identity \
+  --role-arn arn:aws:iam::ACCOUNT:role/CredddyAgentRole \
+  --role-session-name my-agent \
+  --web-identity-token "$TOKEN"
+```
+
+No static AWS credentials needed!
+
+## Key Rotation
+
+OIDC signing keys can be rotated without downtime:
+
+```bash
+# View current keys
+curl https://creddy.example.com/.well-known/jwks.json | jq '.keys[].kid'
+
+# Rotate (admin)
+creddy admin keys rotate
+```
+
+Old keys remain in JWKS during a grace period for token validation.
+
+## Verifying Tokens
+
+To verify Creddy tokens in your own service:
+
+**Go:**
+```go
+import "github.com/getcreddy/creddy/verify"
+
+verifier := verify.New("https://creddy.example.com")
+claims, err := verifier.Verify(ctx, token)
+if err != nil {
+    // Invalid token
+}
+fmt.Println("Agent:", claims.AgentName)
+```
+
+**Manual (any language):**
+1. Fetch `/.well-known/jwks.json`
+2. Extract `kid` from JWT header
+3. Find matching key in JWKS
+4. Verify RS256 signature
+5. Validate `iss`, `exp`, `aud` claims
+
+## Comparison
+
+| Feature | Legacy (`ckr_`) | OIDC |
+|---------|-----------------|------|
+| Token lifetime | Permanent | 1 hour (configurable) |
+| Format | Opaque string | JWT with claims |
+| AWS/GCP federation | ❌ | ✅ |
+| Self-describing | ❌ | ✅ (claims in token) |
+| Revocation | Delete agent | Keys rotate, tokens expire |
+
+Use OIDC for production. Use legacy for quick testing or simple setups.

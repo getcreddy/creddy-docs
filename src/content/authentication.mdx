@@ -1,229 +1,208 @@
-# Client Authentication
+# Authentication
 
-Creddy uses public-key cryptography for client authentication. No shared secrets are stored after initial enrollment.
+Creddy supports two authentication methods. Choose based on your needs:
 
-## How It Works
+| Method | Best For | Token Format |
+|--------|----------|--------------|
+| **OIDC** | Production, AWS/GCP federation | JWT (`eyJ...`) |
+| **Legacy** | Quick setup, simple scripts | Opaque (`ckr_...`) |
 
-1. **Client generates a keypair** — Ed25519 keys are generated locally
-2. **Client requests enrollment** — Sends public key to server
-3. **Admin approves** — Via CLI, Slack, or other integration
-4. **Client is activated** — All requests are now signed with the private key
+Both methods work on all API endpoints.
 
-```
-┌─────────────┐                           ┌─────────────┐
-│   Client    │  1. Generate keypair      │             │
-│             │  2. Send public key ────▶ │   Creddy    │
-│             │                           │   Server    │
-│             │  (pending approval)       │             │
-└─────────────┘                           └─────────────┘
-                                                 │
-                                                 │ 3. Notify admin
-                                                 ▼
-                                          ┌─────────────┐
-                                          │   Admin     │
-                                          │  (CLI/Slack)│
-                                          └─────────────┘
-                                                 │
-                                                 │ 4. Approve
-                                                 ▼
-┌─────────────┐                           ┌─────────────┐
-│   Client    │  5. Enrollment complete   │   Creddy    │
-│             │ ◀──────────────────────── │   Server    │
-│             │                           │             │
-│             │  6. Signed requests ────▶ │             │
-└─────────────┘                           └─────────────┘
+---
+
+## OIDC Authentication (Recommended)
+
+Standard OAuth 2.0 client credentials flow. Agents get short-lived JWTs.
+
+### Setup
+
+1. Start server with OIDC enabled:
+```bash
+creddy server --oidc-issuer https://creddy.example.com
 ```
 
-## Enrolling a Client
+2. Create agent (save the OIDC credentials):
+```bash
+creddy agent create my-agent --scopes github
+# Returns client_id and client_secret
+```
 
-### Step 1: Enroll the Client
+### Agent Authentication
 
 ```bash
-$ creddy enroll https://creddy.example.com --name my-laptop
+# Step 1: Exchange credentials for access token
+ACCESS_TOKEN=$(curl -s -X POST https://creddy.example.com/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=agent_f8e7d6" \
+  -d "client_secret=cks_xyz789" \
+  | jq -r .access_token)
 
-Generating keypair... done
-Registering with server... done
-
-Waiting for approval...
-  Name:        my-laptop
-  Fingerprint: SHA256:xK3E8f...
-  Expires:     4:58 remaining
-
-Ask an admin to approve, or run:
-  creddy admin approve enr_abc123
-
-⣾ Waiting for approval... (4:32 remaining)
-
-✓ Approved by admin@example.com
-✓ Client registered: cli_xyz789
-✓ Credentials saved to ~/.config/creddy/
-
-Ready. Try: creddy backends
+# Step 2: Use access token for API calls
+curl https://creddy.example.com/v1/credentials/github \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-The client generates an Ed25519 keypair and sends the public key to the server. The enrollment request is held in a "pending" state until an admin approves it.
+### Token Details
 
-### Step 2: Admin Approval
+Access tokens are JWTs containing:
+- `agent_id` — Unique agent identifier
+- `agent_name` — Human-readable name
+- `scopes` — Granted permissions
+- `exp` — Expiration (1 hour default)
 
-Admins can approve enrollments via CLI:
+See [OIDC Provider](/docs/oidc) for full details.
+
+---
+
+## Legacy Token Authentication
+
+Simple bearer token. Good for scripts and testing.
+
+### Setup
+
+1. Create agent:
+```bash
+creddy agent create my-agent --scopes github
+# Returns token: ckr_abc123...
+```
+
+### Agent Authentication
 
 ```bash
-# List pending enrollments
-$ creddy admin enrollments
+# Use token directly
+curl https://creddy.example.com/v1/credentials/github \
+  -H "Authorization: Bearer ckr_abc123..."
+```
 
-ID            NAME        USER    HOST              IP              EXPIRES
-enr_abc123    my-laptop   marc    marcbook.local    192.168.1.50    4:32
+### Token Details
+
+- Format: `ckr_` + 48 hex characters
+- Lifetime: Permanent (until agent deleted)
+- Stored: SHA256 hash on server
+
+---
+
+## Enrollment Flow
+
+For interactive enrollment (human approval required):
+
+### Agent Side
+
+```bash
+creddy enroll https://creddy.example.com --name my-agent --scopes github
+```
+
+This generates a keypair locally and sends the public key to the server.
+
+### Admin Side
+
+```bash
+# List pending
+creddy admin pending
 
 # Approve
-$ creddy admin approve enr_abc123
-✓ Approved my-laptop (cli_xyz789)
-
-# Or deny
-$ creddy admin deny enr_abc123 --reason "unknown device"
-✗ Denied my-laptop
+creddy admin approve enr_abc123
 ```
 
-Or via Slack (if configured):
+After approval, the agent receives credentials automatically.
 
-```
-🔑 New Client Enrollment Request
+### Auto-Approval
 
-Name:        my-laptop
-User:        marc  
-Host:        marcbook.local
-IP:          192.168.1.50
-Fingerprint: SHA256:xK3E8f...
-
-⏱️ Expires in 5 minutes
-
-[✓ Approve]  [✗ Deny]
-```
-
-## Request Signing
-
-After enrollment, all API requests are signed with the client's private key:
-
-```
-POST /api/v1/credentials HTTP/1.1
-Host: creddy.example.com
-X-Creddy-Client: cli_xyz789
-X-Creddy-Timestamp: 1708531200
-X-Creddy-Signature: base64(ed25519_sign(client_id + timestamp + method + path + body_hash))
-Content-Type: application/json
-
-{"backend": "github", "ttl": "1h"}
-```
-
-The server verifies:
-1. Client ID exists and is active
-2. Timestamp is within 5 minutes of server time
-3. Signature is valid for the request
-
-## Client Roles
-
-Clients can have different roles:
-
-| Role | Permissions |
-|------|-------------|
-| `operator` | Request credentials, list backends |
-| `admin` | All operator permissions + manage enrollments, configure backends |
-
-Assign a role when approving:
-
-```bash
-$ creddy admin approve enr_abc123 --role admin
-```
-
-Default role is `operator`.
-
-## Stored Credentials
-
-Client credentials are stored in `~/.config/creddy/`:
-
-```
-~/.config/creddy/
-├── config.yaml      # Server URL, client ID
-├── client.key       # Ed25519 private key (mode 0600)
-└── client_id        # Client identifier
-```
-
-The private key never leaves the client machine.
-
-## Key Rotation
-
-To rotate a client's keypair:
-
-```bash
-$ creddy rotate-key
-
-Generating new keypair... done
-Requesting key rotation... done
-
-New fingerprint: SHA256:yL4F9g...
-Old key will remain valid for 24 hours.
-
-✓ Key rotation complete
-```
-
-The server accepts both old and new keys during the grace period.
-
-## Revoking Clients
-
-Admins can revoke a client's access:
-
-```bash
-$ creddy admin clients
-
-ID            NAME        ROLE      LAST SEEN           STATUS
-cli_xyz789    my-laptop   operator  2024-01-15 15:30    active
-cli_abc123    ci-runner   operator  2024-01-15 14:00    active
-
-$ creddy admin revoke cli_xyz789
-✓ Revoked my-laptop
-```
-
-Revoked clients cannot make any API requests.
-
-## Bootstrap Admin
-
-On first server start, you need at least one admin. Options:
-
-### Option 1: Config File
-
-Add your public key fingerprint to the server config:
+For CI/CD, configure auto-approve rules:
 
 ```yaml
-# creddy-server.yaml
-admins:
-  - fingerprint: "SHA256:xK3E8f..."
+# creddy.yaml
+policies:
+  - name: ci-runners
+    pattern: "ci-*"
+    scopes:
+      - "github:*"
+    auto_approve: true
+    max_agent_lifetime: 24h
 ```
 
-### Option 2: Bootstrap Token
+Agents matching the pattern are approved immediately with the specified scopes.
 
-Server generates a one-time admin token on first start:
+---
 
-```bash
-$ creddy server
-No admin configured. Bootstrap token (single use):
-  ctk_XXXXXXXXXXXXX
+## Choosing a Method
 
-Run on your machine:
-  creddy init --admin-token ctk_XXXXXXXXXXXXX
+### Use OIDC when:
+- Running in production
+- Need AWS/GCP federation (AssumeRoleWithWebIdentity)
+- Want short-lived tokens
+- Need audit trails with identity claims
+
+### Use Legacy when:
+- Quick local testing
+- Simple shell scripts
+- Don't need federation
+- Single static credential is fine
+
+---
+
+## Security Considerations
+
+### Credential Storage
+
+**OIDC:**
+- Store `client_id` and `client_secret` in secrets manager
+- Access tokens are short-lived (1 hour)
+- Rotate client_secret periodically
+
+**Legacy:**
+- Store `ckr_` token in secrets manager
+- Token is permanent — rotate by creating new agent
+- Delete old agents after rotation
+
+### Network Security
+
+- Always use HTTPS in production
+- Bind server to Tailscale/private network
+- Use `--listen` to restrict access
+
+### Revocation
+
+**OIDC:**
+- Rotate signing keys: `creddy admin keys rotate`
+- All tokens become invalid
+- Agents must re-authenticate
+
+**Legacy:**
+- Delete agent: `creddy agent delete my-agent`
+- Token immediately invalid
+
+---
+
+## API Reference
+
+### Get Token (OIDC)
+
+```
+POST /oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+&client_id=agent_xxx
+&client_secret=cks_xxx
+&scope=openid github
 ```
 
-## Auto-Approve Rules
+### Authenticated Requests
 
-For CI/CD environments, you can configure auto-approve rules:
-
-```yaml
-# creddy-server.yaml
-enrollment:
-  auto_approve:
-    - cidr: 10.0.0.0/8           # Internal network
-    - hostname_pattern: "ci-*"   # CI runners
-  
-  # Enrollments expire after this duration
-  pending_ttl: 5m
+```
+GET /v1/credentials/github
+Authorization: Bearer <token>
 ```
 
-Auto-approved clients get the `operator` role by default.
+Works with both OIDC access tokens (`eyJ...`) and legacy tokens (`ckr_...`).
+
+### Check Identity
+
+```
+GET /v1/status
+Authorization: Bearer <token>
+```
+
+Returns agent info and active credentials.
