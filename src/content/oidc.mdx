@@ -46,7 +46,7 @@ When you create an agent, Creddy generates two sets of credentials:
 
 | Type | Format | Use Case |
 |------|--------|----------|
-| **Legacy Token** | `ckr_xxx...` | Simple auth, direct API access |
+| **Vend Token** | `ckr_xxx...` | Simple auth, direct API access |
 | **OIDC Credentials** | `client_id` + `client_secret` | Standard OAuth, federation |
 
 ```bash
@@ -57,7 +57,7 @@ Output:
 ```json
 {
   "name": "my-agent",
-  "token": "ckr_abc123...",           // Legacy
+  "token": "ckr_abc123...",           // Vend token
   "oidc": {
     "client_id": "agent_f8e7d6",      // OIDC
     "client_secret": "cks_xyz789..."
@@ -102,9 +102,9 @@ curl https://creddy.example.com/v1/status \
   -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..."
 ```
 
-### Legacy Flow
+### Vend Flow
 
-Skip the OAuth exchange, use the `ckr_` token directly:
+Skip the OAuth exchange — use the vend token directly:
 
 ```bash
 curl https://creddy.example.com/v1/credentials/github?ttl=10m \
@@ -271,12 +271,12 @@ fmt.Println("Agent:", claims.AgentName)
 
 ## Comparison
 
-| Feature | Legacy (`ckr_`) | OIDC |
-|---------|-----------------|------|
+| Feature | Vend (`ckr_`) | OIDC |
+|---------|---------------|------|
 | Token lifetime | Permanent | 1 hour (configurable) |
 | Format | Opaque string | JWT with claims |
 | AWS/GCP federation | ❌ | ✅ |
 | Self-describing | ❌ | ✅ (claims in token) |
 | Revocation | Delete agent | Keys rotate, tokens expire |
 
-Use OIDC for production. Use legacy for quick testing or simple setups.
+Use OIDC for production. Use vend tokens for quick testing or simple setups.

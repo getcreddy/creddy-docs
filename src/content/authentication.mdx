@@ -5,7 +5,7 @@ Creddy supports two authentication methods. Choose based on your needs:
 | Method | Best For | Token Format |
 |--------|----------|--------------|
 | **OIDC** | Production, AWS/GCP federation | JWT (`eyJ...`) |
-| **Legacy** | Quick setup, simple scripts | Opaque (`ckr_...`) |
+| **Vend** | Quick setup, simple scripts | Opaque (`ckr_...`) |
 
 Both methods work on all API endpoints.
 
@@ -55,9 +55,9 @@ See [OIDC Provider](/docs/oidc) for full details.
 
 ---
 
-## Legacy Token Authentication
+## Vend Token Authentication
 
-Simple bearer token. Good for scripts and testing.
+Simple bearer token. Creddy "vends" credentials directly — no OAuth exchange needed.
 
 ### Setup
 
@@ -134,7 +134,7 @@ Agents matching the pattern are approved immediately with the specified scopes.
 - Want short-lived tokens
 - Need audit trails with identity claims
 
-### Use Legacy when:
+### Use Vend tokens when:
 - Quick local testing
 - Simple shell scripts
 - Don't need federation
@@ -151,7 +151,7 @@ Agents matching the pattern are approved immediately with the specified scopes.
 - Access tokens are short-lived (1 hour)
 - Rotate client_secret periodically
 
-**Legacy:**
+**Vend:**
 - Store `ckr_` token in secrets manager
 - Token is permanent — rotate by creating new agent
 - Delete old agents after rotation
@@ -169,7 +169,7 @@ Agents matching the pattern are approved immediately with the specified scopes.
 - All tokens become invalid
 - Agents must re-authenticate
 
-**Legacy:**
+**Vend:**
 - Delete agent: `creddy agent delete my-agent`
 - Token immediately invalid
 

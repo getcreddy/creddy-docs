@@ -107,13 +107,13 @@ GITHUB_TOKEN=$(curl -s "$CREDDY_URL/v1/credentials/github?ttl=10m" \
 gh api repos/owner/repo --header "Authorization: token $GITHUB_TOKEN"
 ```
 
-### Option B: Legacy Flow (Simpler)
+### Option B: Vend Flow (Simpler)
 
 ```bash
 # Set this in your agent's environment
 export CREDDY_TOKEN="ckr_abc123..."
 
-# Get GitHub credential directly
+# Vend a GitHub credential directly (no OAuth exchange)
 GITHUB_TOKEN=$(curl -s "$CREDDY_URL/v1/credentials/github?ttl=10m" \
   -H "Authorization: Bearer $CREDDY_TOKEN" \
   | jq -r .token)
