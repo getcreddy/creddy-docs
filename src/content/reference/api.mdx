@@ -5,53 +5,140 @@ Creddy exposes a REST API for credential management.
 ## Base URL
 
 ```
-http://localhost:8080/api/v1
+http://localhost:8400/v1
 ```
 
 ## Authentication
 
-All endpoints (except enrollment initiation and health) require request signing. See [Client Authentication](/docs/authentication) for details.
+### Agent Authentication
+
+Agent endpoints require a Bearer token. Creddy accepts two token types:
+
+**Vend Token** (simple):
+```
+Authorization: Bearer ckr_abc123...
+```
+
+**OIDC JWT** (standard OAuth):
+```
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+```
+
+Both provide the same access. See [Authentication](/docs/authentication) for details.
+
+### Admin Authentication
+
+Admin endpoints (`/v1/admin/*`) require either:
+
+1. **Local access** — Requests from localhost are allowed without auth (for CLI)
+2. **Admin-scoped agent** — Agent with `admin:*` scopes
+
+Admin scopes:
+| Scope | Endpoints |
+|-------|-----------|
+| `admin:agents:read` | `GET /v1/admin/agents` |
+| `admin:agents:write` | `POST /v1/admin/agents`, `DELETE /v1/admin/agents/{name}` |
+| `admin:backends:read` | `GET /v1/admin/backends` |
+| `admin:backends:write` | `POST /v1/admin/backends`, `DELETE /v1/admin/backends/{name}` |
+| `admin:tokens:read` | `GET /v1/admin/tokens` |
+| `admin:tokens:write` | `DELETE /v1/admin/tokens/{id}` |
+| `admin:audit:read` | `GET /v1/admin/audit` |
+| `admin:enrollments:read` | `GET /v1/admin/pending` |
+| `admin:enrollments:write` | `POST /v1/admin/pending/{id}/*` |
+| `admin:plugins:write` | `POST /v1/admin/plugins/*` |
+| `admin:keys:read` | `GET /v1/admin/keys` |
+
+Wildcards work: `admin:*` grants all admin permissions, `admin:agents:*` grants read and write for agents.
+
+---
+
+## OIDC Endpoints
+
+### Token Endpoint
+
+Exchange client credentials for an access token.
 
 ```
-X-Creddy-Client: cli_xyz789
-X-Creddy-Timestamp: 1708531200
-X-Creddy-Signature: base64(...)
+POST /oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=agent_xxx&client_secret=cks_xxx
+```
+
+#### Response
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}
+```
+
+### Discovery Document
+
+```
+GET /.well-known/openid-configuration
+```
+
+### JWKS
+
+```
+GET /.well-known/jwks.json
 ```
 
 ---
 
-## Enrollment Endpoints
+## Agent Management (Admin)
 
-### Initiate Enrollment
-
-Start the enrollment process for a new client. No authentication required.
+### List Agents
 
 ```
-POST /api/v1/enrollments
+GET /v1/admin/agents
 ```
+
+Requires: `admin:agents:read`
+
+#### Response
+
+```json
+[
+  {
+    "id": "ag_abc123",
+    "name": "my-agent",
+    "scopes": ["github:owner/repo"],
+    "created_at": "2024-01-15T15:00:00Z",
+    "last_used": "2024-01-15T16:30:00Z"
+  }
+]
+```
+
+### Create Agent
+
+```
+POST /v1/admin/agents
+```
+
+Requires: `admin:agents:write`
 
 #### Request Body
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `public_key` | string | Yes | Base64-encoded Ed25519 public key |
-| `name` | string | Yes | Human-readable client name |
-| `metadata` | object | No | Client metadata (hostname, user, OS) |
+| `name` | string | Yes | Agent name |
+| `scopes` | string[] | No | Allowed scopes |
+| `expires_in` | string | No | TTL (e.g., `"4h"`, `"24h"`) |
 
 #### Example Request
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/enrollments \
+curl -X POST http://creddy:8400/v1/admin/agents \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "public_key": "MCowBQYDK2VwAyEA...",
-    "name": "my-laptop",
-    "metadata": {
-      "hostname": "marcbook.local",
-      "username": "marc",
-      "os": "darwin",
-      "arch": "arm64"
-    }
+    "name": "task-runner",
+    "scopes": ["github:myorg/repo", "doppler:project"],
+    "expires_in": "4h"
   }'
 ```
 
@@ -59,29 +146,172 @@ curl -X POST http://localhost:8080/api/v1/enrollments \
 
 ```json
 {
-  "enrollment_id": "enr_abc123",
-  "status": "pending",
-  "expires_at": "2024-01-15T16:05:00Z",
-  "poll_interval_ms": 2000
+  "id": "ag_abc123",
+  "name": "task-runner",
+  "token": "ckr_abc123...",
+  "scopes": ["github:myorg/repo", "doppler:project"],
+  "created_at": "2024-01-15T15:00:00Z",
+  "expires_at": "2024-01-15T19:00:00Z",
+  "oidc": {
+    "client_id": "agent_abc123def456",
+    "client_secret": "cks_abc123..."
+  },
+  "signing_key_id": "ABCD1234",
+  "signing_email": "task-runner@creddy.local"
 }
 ```
 
+**Note:** `token`, `oidc.client_secret`, and signing keys are only shown once at creation.
+
+### Delete Agent
+
+```
+DELETE /v1/admin/agents/{name}
+```
+
+Requires: `admin:agents:write`
+
+Revokes all active credentials and deletes the agent.
+
 ---
+
+## Agent Self-Service
+
+### Get Status
+
+```
+GET /v1/status
+```
+
+Returns the authenticated agent's info.
+
+#### Response
+
+```json
+{
+  "id": "ag_abc123",
+  "name": "my-agent",
+  "scopes": ["github:owner/repo"]
+}
+```
+
+### Get Credential
+
+Request a credential from a backend.
+
+```
+POST /v1/credentials/{backend}
+```
+
+#### Response
+
+```json
+{
+  "token": "gho_abc123...",
+  "expires_at": "2024-01-15T16:00:00Z"
+}
+```
+
+### List Active Credentials
+
+```
+GET /v1/active
+```
+
+#### Response
+
+```json
+[
+  {
+    "id": "cred_abc123",
+    "backend": "github",
+    "expires_at": "2024-01-15T16:00:00Z",
+    "created_at": "2024-01-15T15:00:00Z"
+  }
+]
+```
+
+### Revoke Credential
+
+```
+DELETE /v1/active/{id}
+```
+
+### Get Signing Key
+
+```
+GET /v1/signing-key
+```
+
+Returns the agent's GPG signing key for git commits.
+
+#### Response
+
+```json
+{
+  "key_id": "ABCD1234",
+  "public_key": "-----BEGIN PGP PUBLIC KEY BLOCK-----...",
+  "private_key": "-----BEGIN PGP PRIVATE KEY BLOCK-----...",
+  "email": "my-agent@creddy.local",
+  "name": "my-agent"
+}
+```
+
+### Self-Delete
+
+Agent deletes itself when work is complete.
+
+```
+DELETE /v1/self
+```
+
+This:
+- Revokes all active backend credentials
+- Deletes signing keys
+- Deletes the agent
+
+Returns `204 No Content` on success.
+
+---
+
+## Enrollment Endpoints
+
+### Initiate Enrollment
+
+```
+POST /v1/enroll
+```
+
+No authentication required.
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Agent name |
+| `scopes` | string[] | No | Requested scopes |
+
+#### Response
+
+```json
+{
+  "enrollment_id": "enr_abc123",
+  "status": "pending",
+  "poll_url": "/v1/enroll/enr_abc123/status"
+}
+```
 
 ### Poll Enrollment Status
 
-Check if an enrollment has been approved.
-
 ```
-GET /api/v1/enrollments/{enrollment_id}/status
+GET /v1/enroll/{id}/status
 ```
 
 #### Response (Pending)
 
 ```json
 {
-  "status": "pending",
-  "expires_at": "2024-01-15T16:05:00Z"
+  "status": "pending"
 }
 ```
 
@@ -90,264 +320,125 @@ GET /api/v1/enrollments/{enrollment_id}/status
 ```json
 {
   "status": "approved",
-  "client_id": "cli_xyz789",
-  "server_public_key": "MCowBQYDK2VwAyEA..."
+  "token": "ckr_abc123...",
+  "scopes": ["github:read"]
 }
 ```
-
-#### Response (Denied)
-
-```json
-{
-  "status": "denied",
-  "reason": "Unknown device"
-}
-```
-
----
 
 ### List Pending Enrollments (Admin)
 
 ```
-GET /api/v1/admin/enrollments?status=pending
+GET /v1/admin/pending
 ```
 
-#### Response
-
-```json
-{
-  "enrollments": [
-    {
-      "enrollment_id": "enr_abc123",
-      "name": "my-laptop",
-      "public_key_fingerprint": "SHA256:xK3E8f...",
-      "metadata": {
-        "hostname": "marcbook.local",
-        "username": "marc"
-      },
-      "requested_at": "2024-01-15T16:00:00Z",
-      "expires_at": "2024-01-15T16:05:00Z",
-      "ip_address": "192.168.1.50"
-    }
-  ]
-}
-```
-
----
+Requires: `admin:enrollments:read`
 
 ### Approve Enrollment (Admin)
 
 ```
-POST /api/v1/admin/enrollments/{enrollment_id}/approve
+POST /v1/admin/pending/{id}/approve
 ```
 
-#### Request Body
+Requires: `admin:enrollments:write`
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `role` | string | No | Client role: `operator` (default) or `admin` |
-| `note` | string | No | Admin note |
+#### Request Body (optional)
 
-#### Response
+| Field | Type | Description |
+|-------|------|-------------|
+| `scopes` | string[] | Override requested scopes |
 
-```json
-{
-  "client_id": "cli_xyz789",
-  "status": "approved"
-}
+### Reject Enrollment (Admin)
+
 ```
+POST /v1/admin/pending/{id}/reject
+```
+
+Requires: `admin:enrollments:write`
 
 ---
 
-### Deny Enrollment (Admin)
-
-```
-POST /api/v1/admin/enrollments/{enrollment_id}/deny
-```
-
-#### Request Body
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `reason` | string | No | Reason for denial |
-
----
-
-## Credential Endpoints
-
-### Issue Credential
-
-Issue a new ephemeral credential.
-
-```
-POST /api/v1/credentials
-```
-
-#### Request Body
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `backend` | string | Yes | Backend identifier |
-| `ttl` | string | No | Time to live (e.g., "1h", "30m") |
-| `scopes` | string[] | No | Requested scopes |
-| `metadata` | object | No | Custom metadata for audit |
-
-#### Example Request
-
-```bash
-curl -X POST http://localhost:8080/api/v1/credentials \
-  -H "Content-Type: application/json" \
-  -H "X-Creddy-Client: cli_xyz789" \
-  -H "X-Creddy-Timestamp: 1708531200" \
-  -H "X-Creddy-Signature: ..." \
-  -d '{
-    "backend": "github",
-    "ttl": "1h",
-    "scopes": ["repo:read", "issues:write"]
-  }'
-```
-
-#### Response
-
-```json
-{
-  "id": "cred_abc123",
-  "token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...",
-  "backend": "github",
-  "scopes": ["repo:read", "issues:write"],
-  "expires_at": "2024-01-15T16:00:00Z",
-  "created_at": "2024-01-15T15:00:00Z"
-}
-```
-
----
-
-### Get Credential
-
-Retrieve credential metadata (not the token itself).
-
-```
-GET /api/v1/credentials/{id}
-```
-
-#### Response
-
-```json
-{
-  "id": "cred_abc123",
-  "backend": "github",
-  "scopes": ["repo:read"],
-  "expires_at": "2024-01-15T16:00:00Z",
-  "created_at": "2024-01-15T15:00:00Z",
-  "revoked": false
-}
-```
-
----
-
-### Revoke Credential
-
-Revoke a credential before expiration.
-
-```
-DELETE /api/v1/credentials/{id}
-```
-
-#### Response
-
-```json
-{
-  "id": "cred_abc123",
-  "revoked": true,
-  "revoked_at": "2024-01-15T15:30:00Z"
-}
-```
-
----
-
-## Client Management (Admin)
-
-### List Clients
-
-```
-GET /api/v1/admin/clients
-```
-
-#### Response
-
-```json
-{
-  "clients": [
-    {
-      "client_id": "cli_xyz789",
-      "name": "my-laptop",
-      "role": "operator",
-      "public_key_fingerprint": "SHA256:xK3E8f...",
-      "created_at": "2024-01-15T15:00:00Z",
-      "last_seen": "2024-01-15T16:30:00Z",
-      "status": "active"
-    }
-  ]
-}
-```
-
----
-
-### Revoke Client
-
-```
-DELETE /api/v1/admin/clients/{client_id}
-```
-
-#### Response
-
-```json
-{
-  "client_id": "cli_xyz789",
-  "status": "revoked",
-  "revoked_at": "2024-01-15T16:00:00Z"
-}
-```
-
----
-
-## Backend Endpoints
+## Backend Management (Admin)
 
 ### List Backends
 
 ```
-GET /api/v1/backends
+GET /v1/admin/backends
 ```
 
-#### Response
+Requires: `admin:backends:read`
 
-```json
-{
-  "backends": [
-    {
-      "id": "github",
-      "type": "github",
-      "default_ttl": "1h",
-      "max_ttl": "24h",
-      "allowed_scopes": ["repo:*", "issues:*"]
-    }
-  ]
-}
+### Create Backend
+
 ```
+POST /v1/admin/backends
+```
+
+Requires: `admin:backends:write`
+
+#### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Backend type (github, doppler, etc.) |
+| `name` | string | No | Custom name (defaults to type) |
+| `config` | object | Yes | Backend-specific configuration |
+
+### Delete Backend
+
+```
+DELETE /v1/admin/backends/{name}
+```
+
+Requires: `admin:backends:write`
 
 ---
 
-### Get Backend
+## Token Management (Admin)
+
+### List All Active Tokens
 
 ```
-GET /api/v1/backends/{id}
+GET /v1/admin/tokens
 ```
+
+Requires: `admin:tokens:read`
+
+#### Query Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `backend` | Filter by backend |
+| `agent` | Filter by agent name |
+
+### Revoke Token
+
+```
+DELETE /v1/admin/tokens/{id}
+```
+
+Requires: `admin:tokens:write`
 
 ---
 
-## Other Endpoints
+## Audit Log (Admin)
 
-### Health Check
+```
+GET /v1/admin/audit
+```
+
+Requires: `admin:audit:read`
+
+#### Query Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `limit` | Max results (default 100) |
+| `agent_id` | Filter by agent ID |
+| `action` | Filter by action type |
+
+---
+
+## Health Check
 
 ```
 GET /health
@@ -355,57 +446,26 @@ GET /health
 
 No authentication required.
 
-#### Response
-
 ```json
 {
-  "status": "healthy",
-  "version": "0.1.0"
+  "status": "ok"
 }
 ```
-
----
-
-### Audit Log
-
-```
-GET /api/v1/audit
-```
-
-#### Query Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `backend` | string | Filter by backend |
-| `client_id` | string | Filter by client |
-| `since` | string | Start time (ISO 8601 or duration) |
-| `until` | string | End time |
-| `limit` | int | Max results (default 100) |
 
 ---
 
 ## Error Responses
 
-All errors follow this format:
-
 ```json
 {
-  "error": {
-    "code": "invalid_request",
-    "message": "Backend 'unknown' not found"
-  }
+  "error": "description of what went wrong"
 }
 ```
 
-### Error Codes
-
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `invalid_request` | 400 | Invalid request body or parameters |
-| `unauthorized` | 401 | Missing or invalid authentication |
-| `forbidden` | 403 | Insufficient permissions |
-| `not_found` | 404 | Resource not found |
-| `enrollment_expired` | 410 | Enrollment request has expired |
-| `enrollment_denied` | 403 | Enrollment was denied |
-| `client_revoked` | 403 | Client has been revoked |
-| `internal_error` | 500 | Server error |
+| HTTP Status | Meaning |
+|-------------|---------|
+| 400 | Bad request (invalid parameters) |
+| 401 | Missing or invalid authentication |
+| 403 | Insufficient permissions |
+| 404 | Resource not found |
+| 500 | Server error |

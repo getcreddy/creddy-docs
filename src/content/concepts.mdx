@@ -37,7 +37,7 @@ creddy agent create my-bot --scopes "github:owner/repo"
 Each agent has:
 - **Name** — Human-readable identifier
 - **Scopes** — What backends/resources it can access
-- **Credentials** — How it authenticates (OIDC or legacy token)
+- **Credentials** — How it authenticates (OIDC or vend token)
 
 ### Agent Credentials
 
@@ -49,6 +49,44 @@ When created, agents receive two sets of credentials:
 | OIDC | `client_id` + `client_secret` | OAuth flow, federation |
 
 Both work for all API endpoints. See [Authentication](/docs/authentication) for details.
+
+### Agent Lifecycle
+
+Agents can be:
+- **Permanent** — No expiration, deleted manually
+- **Time-limited** — Auto-deleted after TTL expires
+
+```bash
+# Create agent with 4-hour TTL
+creddy agent create task-runner --scopes github --expires-in 4h
+```
+
+Or via API:
+```json
+{
+  "name": "task-runner",
+  "scopes": ["github:owner/repo"],
+  "expires_in": "4h"
+}
+```
+
+The agent is automatically reaped when TTL expires.
+
+### Self-Deletion
+
+Agents can delete themselves when their work is complete:
+
+```bash
+curl -X DELETE https://creddy.example.com/v1/self \
+  -H "Authorization: Bearer $AGENT_TOKEN"
+```
+
+This:
+- Revokes all active backend credentials
+- Deletes signing keys
+- Removes the agent
+
+Use TTL as a safety net, self-delete for clean shutdown.
 
 ---
 
@@ -219,6 +257,57 @@ Creddy is an OpenID Connect provider. Agents can authenticate using standard OAu
 **ID Token** — JWT for identity verification (federation)
 
 See [OIDC Provider](/docs/oidc) for full details.
+
+---
+
+## Admin Scopes
+
+Agents can be granted admin permissions to manage other agents and resources.
+
+### Available Scopes
+
+| Scope | Permission |
+|-------|------------|
+| `admin:agents:read` | List agents |
+| `admin:agents:write` | Create/delete agents |
+| `admin:backends:read` | List backends |
+| `admin:backends:write` | Create/delete backends |
+| `admin:tokens:read` | List active tokens |
+| `admin:tokens:write` | Revoke tokens |
+| `admin:audit:read` | View audit log |
+| `admin:enrollments:read` | List pending enrollments |
+| `admin:enrollments:write` | Approve/reject enrollments |
+| `admin:plugins:write` | Reload plugins |
+| `admin:keys:read` | View signing keys |
+
+### Wildcards
+
+- `admin:*` — Full admin access
+- `admin:agents:*` — Read and write agents
+
+### Provisioner Pattern
+
+Create a "provisioner" agent that manages other agents:
+
+```bash
+# One-time setup (on server)
+creddy agent create provisioner --scopes "admin:agents:*"
+
+# Provisioner creates task agents remotely
+curl -X POST https://creddy.example.com/v1/admin/agents \
+  -H "Authorization: Bearer $PROVISIONER_TOKEN" \
+  -d '{
+    "name": "task-123",
+    "scopes": ["github:owner/repo"],
+    "expires_in": "4h"
+  }'
+```
+
+The provisioner is a trusted process that:
+1. Authenticates to Creddy with admin credentials
+2. Creates agents for specific tasks
+3. Passes credentials to agent processes
+4. Agents self-delete when done (or TTL expires)
 
 ---
 
