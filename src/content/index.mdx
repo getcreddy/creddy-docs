@@ -44,7 +44,7 @@ The agent never sees your GitHub App private key or AWS root credentials.
 ```bash
 creddy server --oidc-issuer https://creddy.example.com
 creddy backend add github --app-id 123 --private-key ./key.pem
-creddy agent create my-bot --scopes github:owner/repo
+creddy agent create my-bot --can github:owner/repo
 ```
 
 **Agent (gets temporary credentials):**

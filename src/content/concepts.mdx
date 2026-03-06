@@ -31,7 +31,7 @@ Agent authenticates    Agent requests credential    Agent uses credential
 An **agent** is an identity that can request credentials. Typically an AI assistant, CI runner, or automated script.
 
 ```bash
-creddy agent create my-bot --scopes "github:owner/repo"
+creddy agent create my-bot --can "github:owner/repo"
 ```
 
 Each agent has:
@@ -56,18 +56,17 @@ Agents can be:
 - **Permanent** — No expiration, deleted manually
 - **Time-limited** — Auto-deleted after TTL expires
 
-```bash
-# Create agent with 4-hour TTL
-creddy agent create task-runner --scopes github --expires-in 4h
-```
+Create a time-limited agent via API:
 
-Or via API:
-```json
-{
-  "name": "task-runner",
-  "scopes": ["github:owner/repo"],
-  "expires_in": "4h"
-}
+```bash
+curl -X POST https://creddy.example.com/v1/admin/agents \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "task-runner",
+    "scopes": ["github:owner/repo"],
+    "expires_in": "4h"
+  }'
 ```
 
 The agent is automatically reaped when TTL expires.
@@ -291,7 +290,7 @@ Create a "provisioner" agent that manages other agents:
 
 ```bash
 # One-time setup (on server)
-creddy agent create provisioner --scopes "admin:agents:*"
+creddy agent create provisioner --can "admin:agents:*"
 
 # Provisioner creates task agents remotely
 curl -X POST https://creddy.example.com/v1/admin/agents \

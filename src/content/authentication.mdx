@@ -24,7 +24,7 @@ creddy server --oidc-issuer https://creddy.example.com
 
 2. Create agent (save the OIDC credentials):
 ```bash
-creddy agent create my-agent --scopes github
+creddy agent create my-agent --can github
 # Returns client_id and client_secret
 ```
 
@@ -63,7 +63,7 @@ Simple bearer token. Creddy "vends" credentials directly — no OAuth exchange n
 
 1. Create agent:
 ```bash
-creddy agent create my-agent --scopes github
+creddy agent create my-agent --can github
 # Returns token: ckr_abc123...
 ```
 
@@ -90,7 +90,7 @@ For interactive enrollment (human approval required):
 ### Agent Side
 
 ```bash
-creddy enroll https://creddy.example.com --name my-agent --scopes github
+creddy enroll https://creddy.example.com --name my-agent --can github
 ```
 
 This generates a keypair locally and sends the public key to the server.
