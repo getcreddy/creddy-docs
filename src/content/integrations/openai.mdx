@@ -1,5 +1,7 @@
 # OpenAI Integration
 
+> ✅ **Vend Mode**: Creddy creates real OpenAI API keys (via Admin API). Agents use them directly with OpenAI.
+
 Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys are created on-demand via the OpenAI Admin API and automatically deleted when they expire.
 
 ## How It Works
@@ -78,6 +80,8 @@ curl -X POST http://localhost:8400/v1/admin/backends \
 If no `project_id` is specified, Creddy uses the first active project in your organization.
 
 ## Agent Enrollment
+
+> **Authentication**: Agents can authenticate to Creddy using either [vend tokens](/docs/authentication#vend-token-authentication) (`ckr_xxx`) or [OIDC](/docs/oidc) (`client_id`/`client_secret`). Both work with OpenAI.
 
 ```bash
 creddy enroll --server http://creddy:8400 --name my-agent \

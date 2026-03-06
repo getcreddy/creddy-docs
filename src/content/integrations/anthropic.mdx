@@ -1,6 +1,8 @@
 # Anthropic Integration
 
-Creddy's Anthropic plugin provides ephemeral access tokens via a built-in proxy. Agents get short-lived `crd_xxx` tokens that work through Creddy's proxy endpoint, while your actual API key stays secure on the server.
+> ⚠️ **Proxy Mode**: Anthropic's API doesn't support creating ephemeral API keys. Creddy works around this by proxying requests — your agents call Creddy, which forwards to Anthropic using your real key.
+
+Agents get short-lived `crd_xxx` tokens that work through Creddy's proxy endpoint. Your actual API key stays secure on the server.
 
 ## How It Works
 
@@ -82,6 +84,8 @@ Agents request Anthropic access during enrollment:
 creddy enroll --server http://creddy:8400 --name my-agent \
   --can anthropic
 ```
+
+> **Authentication**: Agents can authenticate to Creddy using either [vend tokens](/docs/authentication#vend-token-authentication) (`ckr_xxx`) or [OIDC](/docs/oidc) (`client_id`/`client_secret`). Both work with Anthropic.
 
 ## Requesting Tokens
 

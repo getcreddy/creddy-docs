@@ -162,9 +162,200 @@ Returns:
 
 ---
 
+## TLS & OIDC Setup
+
+OIDC requires HTTPS. Choose the approach that fits your setup:
+
+### Tailscale Funnel (Easiest)
+
+If you're on Tailscale, Funnel gives you instant public HTTPS:
+
+```bash
+# Expose Creddy publicly with TLS
+tailscale funnel 8400
+
+# Start with OIDC
+creddy server --oidc-issuer https://mybox.tail1234.ts.net
+```
+
+Your issuer URL is your Tailscale machine name + `.ts.net`.
+
+### Caddy (Auto-TLS)
+
+Caddy handles Let's Encrypt automatically:
+
+```bash
+# Caddyfile
+creddy.example.com {
+    reverse_proxy localhost:8400
+}
+```
+
+```bash
+# Start Caddy
+caddy run
+
+# Start Creddy
+creddy server --oidc-issuer https://creddy.example.com
+```
+
+### nginx + certbot
+
+```bash
+# Get cert
+sudo certbot certonly --nginx -d creddy.example.com
+
+# nginx.conf
+server {
+    listen 443 ssl;
+    server_name creddy.example.com;
+    
+    ssl_certificate /etc/letsencrypt/live/creddy.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/creddy.example.com/privkey.pem;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8400;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### Cloud Load Balancer
+
+AWS ALB, GCP LB, and Cloudflare all provide managed TLS:
+
+1. Point your LB to Creddy's port
+2. Attach a managed certificate
+3. Use the LB's hostname as your issuer
+
+```bash
+creddy server --oidc-issuer https://creddy.example.com
+```
+
+### Internal Only (No Federation)
+
+If you don't need AWS/GCP federation and all agents are on your network:
+
+```bash
+# Tailscale-only (no public exposure)
+creddy server --oidc-issuer https://creddy.tail1234.ts.net
+
+# Agents on tailnet can verify tokens
+# External services (AWS) cannot
+```
+
+> **Note**: For AWS/GCP OIDC federation, your issuer URL must be publicly reachable so they can fetch `/.well-known/openid-configuration` and `/.well-known/jwks.json`.
+
+---
+
+## Remote Agent Provisioning
+
+For automated workflows, set up a **provisioner** agent that can create other agents remotely.
+
+### 1. Create the Provisioner (on server)
+
+```bash
+# SSH into your Creddy server
+creddy agent create provisioner --can "admin:agents:*"
+```
+
+Output:
+```json
+{
+  "name": "provisioner",
+  "token": "ckr_abc123...",
+  "oidc": {
+    "client_id": "agent_f8e7d6c5b4a3",
+    "client_secret": "cks_xyz789..."
+  }
+}
+```
+
+Save the OIDC credentials securely (e.g., in your secrets manager).
+
+### 2. Use from Your Automation
+
+Copy the env vars from the CLI output, then use them to create task agents:
+
+```bash
+# From CLI output - already set:
+# export CREDDY_URL=https://creddy-server.tail311b.ts.net
+# export CREDDY_CLIENT_ID=agent_9a57c4e6db3a
+# export CREDDY_CLIENT_SECRET=cks_0adf701f67231d2d08cd836c49574021
+
+# Get admin token
+CREDDY_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=$CREDDY_CLIENT_ID" \
+  -d "client_secret=$CREDDY_CLIENT_SECRET" \
+  | jq -r .access_token)
+
+# Create a task agent with 4-hour TTL
+AGENT_CREDS=$(curl -s -X POST $CREDDY_URL/v1/admin/agents \
+  -H "Authorization: Bearer $CREDDY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "task-12345",
+    "scopes": ["github:owner/repo"],
+    "expires_in": "4h"
+  }')
+
+# Extract credentials for the task agent
+AGENT_CLIENT_ID=$(echo $AGENT_CREDS | jq -r '.oidc.client_id')
+AGENT_CLIENT_SECRET=$(echo $AGENT_CREDS | jq -r '.oidc.client_secret')
+AGENT_URL=$(echo $AGENT_CREDS | jq -r '.server_url')
+
+# Pass to your agent process...
+```
+
+### 3. Agent Workflow
+
+The task agent:
+1. Authenticates with its OIDC credentials
+2. Requests backend credentials as needed
+3. Does its work
+4. Self-deletes when done (or TTL expires as safety net)
+
+```bash
+# Agent receives these env vars from provisioner:
+# CREDDY_URL, CREDDY_CLIENT_ID, CREDDY_CLIENT_SECRET
+
+# Agent gets its own token
+CREDDY_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=$CREDDY_CLIENT_ID" \
+  -d "client_secret=$CREDDY_CLIENT_SECRET" \
+  | jq -r .access_token)
+
+# Get GitHub credential
+GITHUB_TOKEN=$(curl -s $CREDDY_URL/v1/credentials/github \
+  -H "Authorization: Bearer $CREDDY_TOKEN" \
+  | jq -r .token)
+
+# ... do work ...
+
+# Clean up
+curl -X DELETE $CREDDY_URL/v1/self \
+  -H "Authorization: Bearer $CREDDY_TOKEN"
+```
+
+### Admin Scopes Reference
+
+| Scope | Permission |
+|-------|------------|
+| `admin:agents:read` | List agents |
+| `admin:agents:write` | Create/delete agents |
+| `admin:agents:*` | Both (recommended for provisioner) |
+| `admin:*` | Full admin access |
+
+See [Concepts → Admin Scopes](/docs/concepts#admin-scopes) for the complete list.
+
+---
+
 ## Security Considerations
 
-1. **Run behind a reverse proxy** — Use nginx/caddy for TLS termination
+1. **Use TLS** — Required for OIDC, recommended always
 2. **Restrict network access** — Firewall the port, only allow trusted agents
 3. **Enable agent inactivity cleanup** — `--agent-inactivity-days 30` removes stale enrollments
 4. **Keep plugins updated** — `creddy plugin outdated` checks for updates

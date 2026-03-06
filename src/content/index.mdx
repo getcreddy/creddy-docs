@@ -2,62 +2,86 @@
 
 **Ephemeral credentials for AI agents.**
 
-Creddy provides short-lived, scoped credentials for AI agents and automated systems. Instead of sharing long-lived API keys or passwords, Creddy generates temporary credentials that automatically expire—reducing risk and improving auditability.
+Your AI agents need access to GitHub, AWS, and other services. But sharing your API keys is risky. Creddy solves this: agents authenticate to Creddy and get short-lived, scoped tokens. They never see your master credentials.
 
-## Why Creddy?
+## The Problem
 
-Traditional credential management wasn't designed for the age of AI agents. When you give an agent access to your systems, you typically have two bad options:
+When you give an agent access to your systems:
 
-1. **Share your credentials** — The agent now has your full access, forever
-2. **Create long-lived API keys** — Better, but still risky if compromised
-
-Creddy offers a third way: **ephemeral, scoped credentials** that exist only as long as needed.
-
-## Key Features
-
-- 🔐 **Ephemeral by default** — Credentials expire automatically (minutes to hours, not months)
-- 🎯 **Scoped access** — Grant only the permissions needed for the task
-- 📊 **Auditable** — Track every credential issued and used
-- 🤖 **Built for agents** — Simple API designed for programmatic access
-- 🔑 **Signed tokens** — Cryptographically signed JWTs for verification
+1. **Share your credentials** — Agent has full access, forever ❌
+2. **Create long-lived API keys** — Still risky if compromised ❌
+3. **Use Creddy** — Agent gets 10-minute scoped tokens ✅
 
 ## How It Works
 
 ```
-┌─────────────┐     1. Request credential      ┌─────────────┐
-│   Agent     │ ─────────────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────────────── │   Server    │
-└─────────────┘     2. Short-lived token       └─────────────┘
-       │
-       │ 3. Use token
-       ▼
-┌─────────────┐
-│  External   │
-│  Service    │
-└─────────────┘
+┌──────────────┐         ┌──────────────┐         ┌──────────────┐
+│    Agent     │ ──────▶ │    Creddy    │         │   GitHub     │
+│  (your bot)  │  auth   │   Server     │         │   AWS, etc   │
+│              │ ◀────── │              │ ◀────── │              │
+│              │  temp   │  (holds      │  master │              │
+│              │  token  │   secrets)   │  creds  │              │
+└──────────────┘         └──────────────┘         └──────────────┘
 ```
 
-1. Agent requests a credential for a specific backend (e.g., "github", "aws")
-2. Creddy issues a signed, time-limited token
-3. Agent uses the token to authenticate with the external service
-4. Token expires automatically — no cleanup needed
+1. **Agent authenticates** to Creddy (via OIDC or token)
+2. **Creddy issues** a short-lived credential for the requested backend
+3. **Agent uses** the credential (expires automatically)
 
-## Quick Start
+The agent never sees your GitHub App private key or AWS root credentials.
 
+## Key Features
+
+- 🔐 **Ephemeral** — Credentials expire in minutes, not months
+- 🎯 **Scoped** — Grant only what's needed (`github:owner/repo:read`)
+- 📊 **Auditable** — Track every credential issued
+- 🌐 **OIDC Provider** — Standard OAuth 2.0, works with AWS/GCP federation
+- 🔌 **Plugin System** — GitHub, AWS, Doppler, Anthropic, and more
+
+## Quick Example
+
+**Server (holds your secrets):**
 ```bash
-# Download the latest release (macOS Apple Silicon)
-curl -sL $(curl -s https://api.github.com/repos/getcreddy/creddy/releases/latest | grep "browser_download_url.*darwin-arm64.tar.gz" | cut -d '"' -f 4) | tar -xz
-sudo mv creddy /usr/local/bin/
-
-# Start the server
-creddy server
-
-# Request a credential (from your agent)
-curl -X POST http://localhost:8080/api/v1/credentials \
-  -H "Content-Type: application/json" \
-  -d '{"backend": "github", "ttl": "1h"}'
+creddy server --oidc-issuer https://creddy.example.com
+creddy backend add github --app-id 123 --private-key ./key.pem
+creddy agent create my-bot --can github:owner/repo
 ```
 
-See [Getting Started](/docs/getting-started) for other platforms.
+**Agent (gets temporary credentials):**
+```bash
+# Authenticate
+TOKEN=$(curl -s -X POST https://creddy.example.com/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=$CLIENT_ID" \
+  -d "client_secret=$CLIENT_SECRET" \
+  | jq -r .access_token)
 
-Ready to get started? Head to [Getting Started](/docs/getting-started).
+# Get 10-minute GitHub token
+GITHUB=$(curl -s "https://creddy.example.com/v1/credentials/github?ttl=10m" \
+  -H "Authorization: Bearer $TOKEN" \
+  | jq -r .token)
+
+# Use it
+gh api repos/owner/repo --header "Authorization: token $GITHUB"
+```
+
+## Documentation
+
+- [Getting Started](/docs/getting-started) — Install and run in 5 minutes
+- [OIDC Provider](/docs/oidc) — OAuth 2.0 authentication, AWS federation
+- [Integrations](/docs/integrations) — GitHub, AWS, Doppler, and more
+- [Concepts](/docs/concepts) — Agents, scopes, backends explained
+
+## Supported Backends
+
+| Backend | Credential Type |
+|---------|-----------------|
+| GitHub | App installation tokens |
+| AWS | STS temporary credentials |
+| Doppler | Scoped service tokens |
+| Anthropic | Ephemeral API keys |
+| OpenAI | Ephemeral API keys |
+| Tailscale | Auth keys |
+| Docker Hub | Access tokens |
+
+[View all integrations →](/docs/integrations)

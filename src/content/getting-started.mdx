@@ -1,112 +1,140 @@
 # Getting Started
 
-Creddy is a single binary that operates in two modes: as a **server** that holds your master secrets and issues short-lived credentials, and as a **client** that agents use to request them.
+Creddy issues short-lived credentials to AI agents. Your agents never see your master secrets — they authenticate to Creddy and get temporary, scoped tokens.
 
-Get it running and issue your first credential in 5 minutes.
-
-## 1. Install the Server
-
-You need one Creddy server that holds your master keys. Agents connect to it to get temporary credentials — they never see the actual secrets.
-
-Run this on the machine where you want to run the Creddy server:
-
-```bash
-curl -fsSL https://get.creddy.dev/install.sh | sudo sh -s -- --to /usr/local/bin
+**Architecture:**
+```
+┌──────────────┐         ┌──────────────┐         ┌──────────────┐
+│    Agent     │ ──────▶ │    Creddy    │ ──────▶ │   GitHub     │
+│  (your bot)  │  auth   │   Server     │  master │   AWS, etc   │
+│              │ ◀────── │              │  creds  │              │
+│              │  temp   │              │         │              │
+│              │  token  │              │         │              │
+└──────────────┘         └──────────────┘         └──────────────┘
 ```
 
-## 2. Start the Daemon
+Get it running in 5 minutes.
+
+---
+
+## 1. Install Creddy
+
+On your server (where master credentials will live):
 
 ```bash
-sudo creddy install --listen 0.0.0.0:8400
+curl -fsSL https://get.creddy.dev/install.sh | sudo sh
 ```
 
-Creddy is now running as a systemd service on port 8400.
+## 2. Start the Server
 
 ```bash
-systemctl status creddy  # Check it's running
+# Basic (local access only)
+creddy server
+
+# With OIDC enabled (recommended for production)
+creddy server --oidc-issuer https://creddy.example.com
 ```
+
+Output:
+```
+Database: /root/.creddy/creddy.db
+OIDC Issuer: https://creddy.example.com
+Listening on 127.0.0.1:8400
+```
+
+> **Production:** See [Server Setup](/docs/server) for TLS, systemd, and Tailscale configuration.
 
 ## 3. Add a Backend
 
-Install the GitHub plugin and configure it:
+Install the GitHub plugin:
 
 ```bash
-sudo creddy plugin install github
-```
+creddy plugin install github
 
-```bash
 creddy backend add github \
   --app-id YOUR_APP_ID \
   --private-key /path/to/private-key.pem \
   --installation-id YOUR_INSTALLATION_ID
 ```
 
-> **Need a GitHub App?** See [GitHub Integration](/docs/integrations/github) for setup instructions.
+> **Need a GitHub App?** See [GitHub Integration](/docs/integrations/github).
 
-## 4. Enroll a Client
-
-On the machine that needs credentials (can be the same machine or a different one):
+## 4. Create an Agent
 
 ```bash
-# Install the client
-curl -fsSL https://get.creddy.dev/install.sh | sh
-
-# Enroll with the server
-creddy enroll https://your-server:8400
+creddy agent create my-agent --can "github:owner/repo"
 ```
 
-Approve the enrollment on the server:
+Output:
+```json
+{
+  "id": "a1b2c3d4",
+  "name": "my-agent",
+  "token": "ckr_abc123...",
+  "oidc": {
+    "client_id": "agent_f8e7d6",
+    "client_secret": "cks_xyz789..."
+  },
+  "scopes": ["github:owner/repo"]
+}
+```
+
+**Save these credentials!** They're only shown once.
+
+## 5. Use Credentials (Agent Side)
+
+### Option A: OIDC Flow (Recommended)
 
 ```bash
-creddy admin approve <enrollment-id>
+# Set these in your agent's environment
+export CREDDY_URL="https://creddy.example.com"
+export CREDDY_CLIENT_ID="agent_f8e7d6"
+export CREDDY_CLIENT_SECRET="cks_xyz789..."
+
+# 1. Get access token
+ACCESS_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=$CREDDY_CLIENT_ID" \
+  -d "client_secret=$CREDDY_CLIENT_SECRET" \
+  | jq -r .access_token)
+
+# 2. Get GitHub credential
+GITHUB_TOKEN=$(curl -s "$CREDDY_URL/v1/credentials/github?ttl=10m" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  | jq -r .token)
+
+# 3. Use it
+gh api repos/owner/repo --header "Authorization: token $GITHUB_TOKEN"
 ```
 
-## 5. Get Credentials
+### Option B: Vend Flow (Simpler)
 
 ```bash
-creddy get github --owner myorg --repo myrepo
+# Set this in your agent's environment
+export CREDDY_TOKEN="ckr_abc123..."
+
+# Vend a GitHub credential directly (no OAuth exchange)
+GITHUB_TOKEN=$(curl -s "$CREDDY_URL/v1/credentials/github?ttl=10m" \
+  -H "Authorization: Bearer $CREDDY_TOKEN" \
+  | jq -r .token)
 ```
 
-That's it! You've issued your first ephemeral credential.
+---
+
+## What Just Happened?
+
+1. **Server** holds your GitHub App credentials (the master secret)
+2. **Agent** authenticated to Creddy (via OIDC or legacy token)
+3. **Creddy** issued a 10-minute GitHub token scoped to `owner/repo`
+4. **Agent** used the temporary token — it auto-expires, no cleanup needed
+
+The agent never saw your GitHub App private key.
 
 ---
 
 ## Next Steps
 
-- [Server Setup](/docs/server) — Production configuration, TLS, security
-- [GitHub Integration](/docs/integrations/github) — Full GitHub App setup
-- [Concepts](/docs/concepts) — Understand agents, backends, scopes, and TTLs
-- [CLI Reference](/docs/reference/cli) — All available commands
-
----
-
-<details>
-<summary>**Manual Installation**</summary>
-
-If you prefer to download binaries directly:
-
-```bash
-# macOS (Apple Silicon)
-curl -LO https://get.creddy.dev/cli/latest/creddy-darwin-arm64
-chmod +x creddy-darwin-arm64
-sudo mv creddy-darwin-arm64 /usr/local/bin/creddy
-
-# macOS (Intel)
-curl -LO https://get.creddy.dev/cli/latest/creddy-darwin-amd64
-chmod +x creddy-darwin-amd64
-sudo mv creddy-darwin-amd64 /usr/local/bin/creddy
-
-# Linux (amd64)
-curl -LO https://get.creddy.dev/cli/latest/creddy-linux-amd64
-chmod +x creddy-linux-amd64
-sudo mv creddy-linux-amd64 /usr/local/bin/creddy
-
-# Linux (arm64)
-curl -LO https://get.creddy.dev/cli/latest/creddy-linux-arm64
-chmod +x creddy-linux-arm64
-sudo mv creddy-linux-arm64 /usr/local/bin/creddy
-```
-
-Verify checksums are available at `https://get.creddy.dev/cli/latest/manifest.json`.
-
-</details>
+- [OIDC Authentication](/docs/oidc) — Deep dive into OIDC flows
+- [Server Setup](/docs/server) — Production configuration
+- [Concepts](/docs/concepts) — Agents, scopes, TTLs explained
+- [Integrations](/docs/integrations) — GitHub, AWS, Doppler, and more

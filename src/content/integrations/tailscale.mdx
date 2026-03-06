@@ -1,5 +1,7 @@
 # Tailscale Integration
 
+> ✅ **Vend Mode**: Creddy creates real Tailscale auth keys. Agents use them directly with `tailscale up`.
+
 Creddy's Tailscale plugin creates ephemeral auth keys for joining your tailnet. Agents request a key, join the network, and when they disconnect the device is automatically removed.
 
 ## How It Works
@@ -82,6 +84,8 @@ Agents request Tailscale access during enrollment:
 creddy enroll --server http://creddy:8400 --name ci-agent \
   --can tailscale
 ```
+
+> **Authentication**: Agents can authenticate to Creddy using either [vend tokens](/docs/authentication#vend-token-authentication) (`ckr_xxx`) or [OIDC](/docs/oidc) (`client_id`/`client_secret`). Both work with Tailscale.
 
 Or with specific tags:
 

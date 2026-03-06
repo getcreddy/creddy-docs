@@ -1,5 +1,7 @@
 # GitHub Integration
 
+> ✅ **Vend Mode**: Creddy creates real GitHub tokens. Agents use them directly with GitHub's API.
+
 Creddy's GitHub integration provides scoped, ephemeral installation tokens for your AI agents. Instead of sharing personal access tokens, agents request short-lived tokens with access to only the repositories they need.
 
 ## How It Works
@@ -122,6 +124,8 @@ creddy enroll http://creddy-server:8400 --name my-agent \
   --can github:owner/repo1 \
   --can github:owner/repo2
 ```
+
+> **Authentication**: Agents can authenticate to Creddy using either [vend tokens](/docs/authentication#vend-token-authentication) (`ckr_xxx`) or [OIDC](/docs/oidc) (`client_id`/`client_secret`). Both work with GitHub.
 
 ### Scope Format
 
