@@ -2,6 +2,30 @@
 
 Core concepts in Creddy.
 
+## Identity vs Credentials
+
+Creddy provides two distinct things:
+
+| Layer | What | Example |
+|-------|------|---------|
+| **Identity** | Proof of who the agent is | JWT with `agent_id`, `scopes` |
+| **Credentials** | Access to external services | GitHub token, AWS creds |
+
+**Identity** (via OIDC) proves the agent is who they claim to be. **Credentials** grant access to specific backends.
+
+```
+Agent authenticates    Agent requests credential    Agent uses credential
+      │                        │                           │
+      ▼                        ▼                           ▼
+┌──────────┐            ┌──────────┐                ┌──────────┐
+│  OIDC    │            │  Vend    │                │  GitHub  │
+│  Token   │ ─────────▶ │  GitHub  │ ─────────────▶ │   API    │
+│  (JWT)   │            │  Token   │                │          │
+└──────────┘            └──────────┘                └──────────┘
+   "I am                 "Give me                    "Here's
+   agent-123"            GitHub access"              the code"
+```
+
 ## Agents
 
 An **agent** is an identity that can request credentials. Typically an AI assistant, CI runner, or automated script.
@@ -44,16 +68,37 @@ creddy backend add github \
 
 Creddy holds the master credentials. Agents get short-lived tokens.
 
+### Backend Modes
+
+Backends work in one of two modes:
+
+| Mode | How it works | Backends |
+|------|--------------|----------|
+| **Vend** | Creddy creates real credential at backend. Agent uses it directly. | GitHub, AWS, Doppler, OpenAI, Tailscale |
+| **Proxy** | Backend doesn't support ephemeral keys. Requests go through Creddy. | Anthropic |
+
+**Vend mode** (most backends):
+```bash
+TOKEN=$(creddy get github)
+gh api repos/owner/repo  # Direct to GitHub
+```
+
+**Proxy mode** (Anthropic):
+```bash
+TOKEN=$(creddy get anthropic)
+curl http://creddy:8400/v1/proxy/anthropic/v1/messages  # Through Creddy
+```
+
 ### Available Backends
 
-| Backend | Credential Type |
-|---------|-----------------|
-| `github` | Installation tokens via GitHub App |
-| `aws` | STS temporary credentials |
-| `doppler` | Service tokens |
-| `anthropic` | Ephemeral API keys |
-| `openai` | Ephemeral API keys |
-| `tailscale` | Auth keys |
+| Backend | Mode | Credential Type |
+|---------|------|-----------------|
+| `github` | Vend | Installation tokens via GitHub App |
+| `aws` | Vend | STS temporary credentials |
+| `doppler` | Vend | Service tokens |
+| `openai` | Vend | Service account API keys |
+| `tailscale` | Vend | Auth keys |
+| `anthropic` | Proxy | Proxy tokens (via Creddy) |
 
 See [Integrations](/docs/integrations) for setup guides.
 

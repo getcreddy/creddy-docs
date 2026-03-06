@@ -1,7 +1,8 @@
 # Doppler Integration
 
-> **🚧 Coming Soon** — This integration is not yet available. Check back soon or [join the waitlist](https://creddy.dev) to be notified when it launches.
+> ✅ **Vend Mode**: Creddy creates real Doppler service tokens. Agents use them directly with Doppler's API/CLI.
 
+> **🚧 Coming Soon** — This integration is not yet available.
 
 Creddy's Doppler integration creates scoped service tokens that give agents access to specific project secrets. Tokens are ephemeral — created on-demand and automatically revoked when they expire or when an agent is unenrolled.
 
@@ -78,6 +79,8 @@ curl -X POST http://localhost:8400/v1/admin/backends \
 ## Agent Enrollment
 
 Agents request access to specific projects and configs during enrollment:
+
+> **Authentication**: Agents can authenticate to Creddy using either [vend tokens](/docs/authentication#vend-token-authentication) (`ckr_xxx`) or [OIDC](/docs/oidc) (`client_id`/`client_secret`). Both work with Doppler.
 
 ```bash
 # Access to production config
