@@ -276,19 +276,24 @@ Save the OIDC credentials securely (e.g., in your secrets manager).
 
 ### 2. Use from Your Automation
 
-Your provisioning system uses these credentials to create task agents:
+Copy the env vars from the CLI output, then use them to create task agents:
 
 ```bash
+# From CLI output - already set:
+# export CREDDY_URL=https://creddy-server.tail311b.ts.net
+# export CREDDY_CLIENT_ID=agent_9a57c4e6db3a
+# export CREDDY_CLIENT_SECRET=cks_0adf701f67231d2d08cd836c49574021
+
 # Get admin token
-ADMIN_TOKEN=$(curl -s -X POST https://creddy.example.com/oauth/token \
+CREDDY_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \
   -d "grant_type=client_credentials" \
-  -d "client_id=$PROVISIONER_CLIENT_ID" \
-  -d "client_secret=$PROVISIONER_CLIENT_SECRET" \
+  -d "client_id=$CREDDY_CLIENT_ID" \
+  -d "client_secret=$CREDDY_CLIENT_SECRET" \
   | jq -r .access_token)
 
 # Create a task agent with 4-hour TTL
-AGENT_CREDS=$(curl -s -X POST https://creddy.example.com/v1/admin/agents \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
+AGENT_CREDS=$(curl -s -X POST $CREDDY_URL/v1/admin/agents \
+  -H "Authorization: Bearer $CREDDY_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "task-12345",
@@ -299,6 +304,7 @@ AGENT_CREDS=$(curl -s -X POST https://creddy.example.com/v1/admin/agents \
 # Extract credentials for the task agent
 AGENT_CLIENT_ID=$(echo $AGENT_CREDS | jq -r '.oidc.client_id')
 AGENT_CLIENT_SECRET=$(echo $AGENT_CREDS | jq -r '.oidc.client_secret')
+AGENT_URL=$(echo $AGENT_CREDS | jq -r '.server_url')
 
 # Pass to your agent process...
 ```
@@ -312,23 +318,26 @@ The task agent:
 4. Self-deletes when done (or TTL expires as safety net)
 
 ```bash
+# Agent receives these env vars from provisioner:
+# CREDDY_URL, CREDDY_CLIENT_ID, CREDDY_CLIENT_SECRET
+
 # Agent gets its own token
-TOKEN=$(curl -s -X POST https://creddy.example.com/oauth/token \
+CREDDY_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \
   -d "grant_type=client_credentials" \
-  -d "client_id=$AGENT_CLIENT_ID" \
-  -d "client_secret=$AGENT_CLIENT_SECRET" \
+  -d "client_id=$CREDDY_CLIENT_ID" \
+  -d "client_secret=$CREDDY_CLIENT_SECRET" \
   | jq -r .access_token)
 
 # Get GitHub credential
-GITHUB_TOKEN=$(curl -s https://creddy.example.com/v1/credentials/github \
-  -H "Authorization: Bearer $TOKEN" \
+GITHUB_TOKEN=$(curl -s $CREDDY_URL/v1/credentials/github \
+  -H "Authorization: Bearer $CREDDY_TOKEN" \
   | jq -r .token)
 
 # ... do work ...
 
 # Clean up
-curl -X DELETE https://creddy.example.com/v1/self \
-  -H "Authorization: Bearer $TOKEN"
+curl -X DELETE $CREDDY_URL/v1/self \
+  -H "Authorization: Bearer $CREDDY_TOKEN"
 ```
 
 ### Admin Scopes Reference
