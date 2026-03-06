@@ -162,9 +162,96 @@ Returns:
 
 ---
 
+## TLS & OIDC Setup
+
+OIDC requires HTTPS. Choose the approach that fits your setup:
+
+### Tailscale Funnel (Easiest)
+
+If you're on Tailscale, Funnel gives you instant public HTTPS:
+
+```bash
+# Expose Creddy publicly with TLS
+tailscale funnel 8400
+
+# Start with OIDC
+creddy server --oidc-issuer https://mybox.tail1234.ts.net
+```
+
+Your issuer URL is your Tailscale machine name + `.ts.net`.
+
+### Caddy (Auto-TLS)
+
+Caddy handles Let's Encrypt automatically:
+
+```bash
+# Caddyfile
+creddy.example.com {
+    reverse_proxy localhost:8400
+}
+```
+
+```bash
+# Start Caddy
+caddy run
+
+# Start Creddy
+creddy server --oidc-issuer https://creddy.example.com
+```
+
+### nginx + certbot
+
+```bash
+# Get cert
+sudo certbot certonly --nginx -d creddy.example.com
+
+# nginx.conf
+server {
+    listen 443 ssl;
+    server_name creddy.example.com;
+    
+    ssl_certificate /etc/letsencrypt/live/creddy.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/creddy.example.com/privkey.pem;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8400;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### Cloud Load Balancer
+
+AWS ALB, GCP LB, and Cloudflare all provide managed TLS:
+
+1. Point your LB to Creddy's port
+2. Attach a managed certificate
+3. Use the LB's hostname as your issuer
+
+```bash
+creddy server --oidc-issuer https://creddy.example.com
+```
+
+### Internal Only (No Federation)
+
+If you don't need AWS/GCP federation and all agents are on your network:
+
+```bash
+# Tailscale-only (no public exposure)
+creddy server --oidc-issuer https://creddy.tail1234.ts.net
+
+# Agents on tailnet can verify tokens
+# External services (AWS) cannot
+```
+
+> **Note**: For AWS/GCP OIDC federation, your issuer URL must be publicly reachable so they can fetch `/.well-known/openid-configuration` and `/.well-known/jwks.json`.
+
+---
+
 ## Security Considerations
 
-1. **Run behind a reverse proxy** — Use nginx/caddy for TLS termination
+1. **Use TLS** — Required for OIDC, recommended always
 2. **Restrict network access** — Firewall the port, only allow trusted agents
 3. **Enable agent inactivity cleanup** — `--agent-inactivity-days 30` removes stale enrollments
 4. **Keep plugins updated** — `creddy plugin outdated` checks for updates

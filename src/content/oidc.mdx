@@ -38,7 +38,11 @@ Start the server with an issuer URL:
 creddy server --oidc-issuer https://creddy.example.com
 ```
 
-The issuer URL must be reachable by agents and any federated services. It goes into the `iss` claim of all tokens.
+The issuer URL must be:
+- **HTTPS** — Required by OIDC spec
+- **Reachable** — Agents and federated services (AWS/GCP) need to fetch JWKS
+
+> **Need TLS?** See [Server Setup → TLS & OIDC](/docs/server#tls--oidc-setup) for Tailscale Funnel, Caddy, nginx, and cloud LB options.
 
 ## Credential Types
 
