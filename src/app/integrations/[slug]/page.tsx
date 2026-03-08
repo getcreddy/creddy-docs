@@ -282,16 +282,16 @@ export default async function IntegrationPage({
     <div className="min-h-screen bg-background text-foreground">
       <style>{`
         .prose-container pre {
-          padding: 1rem 1.25rem !important;
+          padding: 0.75rem 1rem !important;
         }
         .prose-container figure pre {
-          padding: 1rem 1.25rem !important;
+          padding: 0.75rem 1rem !important;
         }
         .prose-container [data-rehype-pretty-code-figure] pre {
-          padding: 1rem 1.25rem !important;
+          padding: 0.75rem 1rem !important;
         }
         .prose-container code[data-theme] {
-          padding: 1rem 1.25rem !important;
+          padding: 0.75rem 1rem !important;
           display: block;
         }
       `}</style>
