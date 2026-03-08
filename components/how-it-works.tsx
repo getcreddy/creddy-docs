@@ -5,40 +5,40 @@ const steps = [
     step: "01",
     title: "Create an agent identity",
     description:
-      "Register each agent with scoped permissions. Creddy acts as an OIDC provider — agents get verifiable identities, not shared secrets.",
+      "Register each agent with scoped permissions. Creddy returns OIDC credentials — a client ID and secret unique to this agent.",
     code: `# Create an agent identity
 creddy agent create agent-12345 \\
-  --can github:myorg/*`,
+  --can github:myorg/*
+
+# Returns OIDC credentials
+{
+  "client_id": "agent_f8e7d6",
+  "client_secret": "cks_xyz789..."
+}`,
   },
   {
     step: "02",
     title: "Agent authenticates via OIDC",
     description:
-      "The agent authenticates and receives a signed JWT. Services can verify the token directly or exchange it for credentials.",
-    code: `# Get OIDC token
-TOKEN=$(creddy get token)
+      "The agent exchanges its credentials for a signed JWT. Standard OAuth 2.0 client credentials flow.",
+    code: `# Get access token (OAuth 2.0)
+curl -X POST https://creddy.example.com/oauth/token \\
+  -d "grant_type=client_credentials" \\
+  -d "client_id=$CLIENT_ID" \\
+  -d "client_secret=$CLIENT_SECRET"
 
-# Token contains identity claims
-{
-  "sub": "agent:agent-12345",
-  "iss": "https://creddy.example.com",
-  "scope": "github:myorg/*",
-  "exp": 1709856000
-}`,
+# → { "access_token": "eyJhbG...", ... }`,
   },
   {
     step: "03",
     title: "Exchange for service credentials",
     description:
-      "For services that support OIDC (AWS, GCP), federate directly. For others, Creddy exchanges identity for short-lived credentials.",
-    code: `# Federate directly with AWS
-aws sts assume-role-with-web-identity \\
-  --role-arn arn:aws:iam::123:role/agent \\
-  --web-identity-token "$TOKEN"
+      "Use the access token to request short-lived credentials. Token expires automatically — no cleanup needed.",
+    code: `# Get GitHub token (10 min TTL)
+curl "https://creddy.example.com/v1/credentials/github?ttl=10m" \\
+  -H "Authorization: Bearer $ACCESS_TOKEN"
 
-# Or get service credentials
-creddy get github --ttl 10m
-# → ghs_xxxxx (expires in 10 minutes)`,
+# → { "token": "ghs_xxxxx", "expires_at": "..." }`,
   },
 ]
 
