@@ -1,15 +1,15 @@
 # Getting Started
 
-Creddy issues short-lived credentials to AI agents. Your agents never see your master secrets — they authenticate to Creddy and get temporary, scoped tokens.
+Creddy is an OIDC provider for AI agents. Agents authenticate via OAuth 2.0 and get short-lived, scoped credentials. Your master secrets never leave the server.
 
 **Architecture:**
 ```
 ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
 │    Agent     │ ──────▶ │    Creddy    │ ──────▶ │   GitHub     │
-│  (your bot)  │  auth   │   Server     │  master │   AWS, etc   │
-│              │ ◀────── │              │  creds  │              │
-│              │  temp   │              │         │              │
-│              │  token  │              │         │              │
+│  (your bot)  │  OIDC   │   Server     │  master │   AWS, etc   │
+│              │ ◀────── │   (IdP)      │  creds  │              │
+│              │  JWT    │              │         │              │
+│              │         │              │         │              │
 └──────────────┘         └──────────────┘         └──────────────┘
 ```
 
@@ -27,11 +27,9 @@ curl -fsSL https://get.creddy.dev/install.sh | sudo sh
 
 ## 2. Start the Server
 
-```bash
-# Basic (local access only)
-creddy server
+Start Creddy with your OIDC issuer URL:
 
-# With OIDC enabled (recommended for production)
+```bash
 creddy server --oidc-issuer https://creddy.example.com
 ```
 
@@ -41,6 +39,8 @@ Database: /root/.creddy/creddy.db
 OIDC Issuer: https://creddy.example.com
 Listening on 127.0.0.1:8400
 ```
+
+The `--oidc-issuer` flag is required. This URL must be reachable by services that will verify agent tokens.
 
 > **Production:** See [Server Setup](/docs/server) for TLS, systemd, and Tailscale configuration.
 
@@ -57,7 +57,7 @@ creddy backend add github \
   --installation-id YOUR_INSTALLATION_ID
 ```
 
-> **Need a GitHub App?** See [GitHub Integration](/docs/integrations/github).
+> **Need a GitHub App?** See [GitHub Integration](/integrations/github).
 
 ## 4. Create an Agent
 
@@ -70,7 +70,6 @@ Output:
 {
   "id": "a1b2c3d4",
   "name": "my-agent",
-  "token": "ckr_abc123...",
   "oidc": {
     "client_id": "agent_f8e7d6",
     "client_secret": "cks_xyz789..."
@@ -83,7 +82,7 @@ Output:
 
 ## 5. Use Credentials (Agent Side)
 
-### Option A: OIDC Flow (Recommended)
+Agents authenticate using standard OAuth 2.0 client credentials:
 
 ```bash
 # Set these in your agent's environment
@@ -91,7 +90,7 @@ export CREDDY_URL="https://creddy.example.com"
 export CREDDY_CLIENT_ID="agent_f8e7d6"
 export CREDDY_CLIENT_SECRET="cks_xyz789..."
 
-# 1. Get access token
+# 1. Get access token (OAuth 2.0 client credentials)
 ACCESS_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \
   -d "grant_type=client_credentials" \
   -d "client_id=$CREDDY_CLIENT_ID" \
@@ -107,16 +106,20 @@ GITHUB_TOKEN=$(curl -s "$CREDDY_URL/v1/credentials/github?ttl=10m" \
 gh api repos/owner/repo --header "Authorization: token $GITHUB_TOKEN"
 ```
 
-### Option B: Vend Flow (Simpler)
+Or use any OIDC client library:
 
-```bash
-# Set this in your agent's environment
-export CREDDY_TOKEN="ckr_abc123..."
+```typescript
+import { Issuer } from 'openid-client';
 
-# Vend a GitHub credential directly (no OAuth exchange)
-GITHUB_TOKEN=$(curl -s "$CREDDY_URL/v1/credentials/github?ttl=10m" \
-  -H "Authorization: Bearer $CREDDY_TOKEN" \
-  | jq -r .token)
+const issuer = await Issuer.discover(process.env.CREDDY_URL);
+const client = new issuer.Client({
+  client_id: process.env.CREDDY_CLIENT_ID,
+  client_secret: process.env.CREDDY_CLIENT_SECRET,
+});
+
+const { access_token } = await client.grant({
+  grant_type: 'client_credentials',
+});
 ```
 
 ---
@@ -124,7 +127,7 @@ GITHUB_TOKEN=$(curl -s "$CREDDY_URL/v1/credentials/github?ttl=10m" \
 ## What Just Happened?
 
 1. **Server** holds your GitHub App credentials (the master secret)
-2. **Agent** authenticated to Creddy (via OIDC or legacy token)
+2. **Agent** authenticated to Creddy via OIDC, got a signed JWT
 3. **Creddy** issued a 10-minute GitHub token scoped to `owner/repo`
 4. **Agent** used the temporary token — it auto-expires, no cleanup needed
 
@@ -134,7 +137,7 @@ The agent never saw your GitHub App private key.
 
 ## Next Steps
 
-- [OIDC Authentication](/docs/oidc) — Deep dive into OIDC flows
+- [OIDC Provider](/docs/oidc) — Deep dive into OIDC flows and federation
 - [Server Setup](/docs/server) — Production configuration
 - [Concepts](/docs/concepts) — Agents, scopes, TTLs explained
-- [Integrations](/docs/integrations) — GitHub, AWS, Doppler, and more
+- [Integrations](/integrations) — GitHub, Anthropic, OpenAI, and more

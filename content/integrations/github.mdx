@@ -13,19 +13,9 @@ Creddy uses a [GitHub App](https://docs.github.com/en/apps) to generate installa
 3. Creddy generates a GitHub App installation token scoped to those repos
 4. Token is returned to the agent (expires in 1 hour max)
 
-```
-┌─────────────┐     creddy get github      ┌─────────────┐
-│   Agent     │ ─────────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────────── │   Server    │
-└─────────────┘     ghs_xxxxx (1h TTL)     └──────┬──────┘
-       │                                          │
-       │ git clone / gh api                       │ GitHub App
-       ▼                                          ▼
-┌─────────────┐                            ┌─────────────┐
-│   GitHub    │ ◀────────────────────────── │  GitHub App │
-│   (repos)   │                            └─────────────┘
-└─────────────┘
-```
+<div className="diagram-invertible-wrapper">
+  <img src="/diagrams/github-flow.svg" alt="GitHub vend flow diagram" />
+</div>
 
 ## Key Concepts
 
@@ -36,7 +26,15 @@ Before setup, understand these key points:
 - **Max permissions on app** — The GitHub App needs the *maximum* permissions any agent might request. Creddy can only reduce permissions, never expand beyond what the app has.
 - **No webhooks needed** — Creddy only generates tokens; it doesn't receive events from GitHub
 
-## Server Setup
+## Installation
+
+Install the GitHub plugin:
+
+```bash
+creddy plugin install github
+```
+
+## Configuration
 
 ### 1. Create a GitHub App
 
@@ -289,29 +287,4 @@ creddy audit --limit 10
 
 Shows who requested what, when, and from where—useful for security reviews and compliance.
 
-## Plugin Download
 
-The GitHub plugin is available from the Creddy plugin registry:
-
-| Platform | Download |
-|----------|----------|
-| Linux (x64) | [creddy-github-linux-amd64](https://plugins.creddy.dev/github/v0.0.2/creddy-github-linux-amd64) |
-| Linux (ARM64) | [creddy-github-linux-arm64](https://plugins.creddy.dev/github/v0.0.2/creddy-github-linux-arm64) |
-| macOS (Intel) | [creddy-github-darwin-amd64](https://plugins.creddy.dev/github/v0.0.2/creddy-github-darwin-amd64) |
-| macOS (Apple Silicon) | [creddy-github-darwin-arm64](https://plugins.creddy.dev/github/v0.0.2/creddy-github-darwin-arm64) |
-| Windows (x64) | [creddy-github-windows-amd64.exe](https://plugins.creddy.dev/github/v0.0.2/creddy-github-windows-amd64.exe) |
-
-**Checksums:** [manifest.json](https://plugins.creddy.dev/github/v0.0.2/manifest.json)
-
-**Latest version:** [plugins.creddy.dev/github/latest/](https://plugins.creddy.dev/github/latest/)
-
-## Version History
-
-### v0.0.2 (Current)
-- Initial public release
-- GitHub App installation token generation
-- Repository-level scoping (`github:owner/repo`)
-- Read/write permission modifiers (`:read`, `:write`)
-- Owner wildcard support (`github:owner/*`)
-- Token revocation support
-- Integration tests for token lifecycle

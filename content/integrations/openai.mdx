@@ -6,19 +6,9 @@ Creddy's OpenAI integration creates ephemeral API keys for your AI agents. Keys 
 
 ## How It Works
 
-```
-┌─────────────┐     creddy get openai      ┌─────────────┐
-│   Agent     │ ─────────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────────── │   Server    │
-└─────────────┘    sk-svcacct-xxx (TTL)    └──────┬──────┘
-       │                                          │
-       │ API calls                                │ Admin API
-       ▼                                          ▼
-┌─────────────┐                            ┌─────────────┐
-│   OpenAI    │                            │   OpenAI    │
-│     API     │                            │  Admin API  │
-└─────────────┘                            └─────────────┘
-```
+<div className="diagram-invertible-wrapper">
+  <img src="/diagrams/openai-flow.svg" alt="OpenAI vend flow diagram" />
+</div>
 
 When an agent requests credentials:
 1. Creddy creates a new service account via the Admin API
@@ -32,7 +22,13 @@ When an agent requests credentials:
 - **Admin API key** (`sk-admin-...`) — requires organization owner to create
 - Project ID (defaults to first active project)
 
-## Server Setup
+## Installation
+
+```bash
+creddy plugin install openai
+```
+
+## Configuration
 
 ### 1. Create an Admin API Key
 
@@ -194,11 +190,3 @@ For reference, the plugin uses these OpenAI Admin API endpoints:
 | Create service account | `POST /v1/organization/projects/{project_id}/service_accounts` |
 | Delete service account | `DELETE /v1/organization/projects/{project_id}/service_accounts/{id}` |
 
-## Version History
-
-### v0.0.1 (Latest)
-- Initial release
-- Admin API implementation using service accounts
-- Admin key validation (`sk-admin-` prefix required)
-- Automatic project discovery
-- Integration tests

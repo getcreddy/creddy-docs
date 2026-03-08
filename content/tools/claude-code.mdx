@@ -1,0 +1,71 @@
+# Claude Code + Creddy
+
+Configure Claude Code to use Creddy for secure GitHub access.
+
+## Overview
+
+Claude Code is Anthropic's agentic coding tool that can work with your codebase. By integrating with Creddy, Claude Code can access GitHub repositories using short-lived, scoped tokens instead of your personal access tokens.
+
+## Prerequisites
+
+- Claude Code installed (`npm install -g @anthropic-ai/claude-code`)
+- Creddy server running with GitHub integration configured
+- Agent enrolled in Creddy with GitHub scope
+
+## Configuration
+
+Claude Code uses environment variables for GitHub authentication. Configure it to fetch credentials from Creddy:
+
+```bash
+# Wrapper script: ~/bin/claude-code-creddy
+#!/bin/bash
+
+# Fetch GitHub token from Creddy
+export GITHUB_TOKEN=$(creddy get github --format token)
+
+# Run Claude Code with the token
+exec claude-code "$@"
+```
+
+Make it executable and use it instead of `claude-code`:
+
+```bash
+chmod +x ~/bin/claude-code-creddy
+alias claude-code="~/bin/claude-code-creddy"
+```
+
+## Alternative: Shell Function
+
+Or add this to your shell profile (`~/.zshrc` or `~/.bashrc`):
+
+```bash
+claude-code() {
+  GITHUB_TOKEN=$(creddy get github --format token) \
+    command claude-code "$@"
+}
+```
+
+## How It Works
+
+1. Before each Claude Code session, the wrapper fetches a fresh GitHub token
+2. Creddy generates a scoped installation token (valid for 1 hour)
+3. Claude Code uses this token for all GitHub operations
+4. Token expires automatically — no cleanup needed
+
+## Scoping Access
+
+Configure which repositories Claude Code can access by setting scopes on the agent in Creddy:
+
+```bash
+# Allow access to specific repos only
+creddy agent update claude-code \
+  --scope "github:repo:myorg/myrepo" \
+  --scope "github:repo:myorg/another-repo"
+```
+
+## Security Benefits
+
+- **Repository-scoped** — Claude Code only accesses allowed repos
+- **Time-limited** — tokens expire in 1 hour
+- **Auditable** — every token request is logged
+- **Revocable** — unenroll the agent to revoke all access

@@ -1,14 +1,19 @@
 import { CodeBlock } from "@/components/code-block"
 
-const quickstartCode = `# Start the Creddy server
+const quickstartCode = `# Install and start Creddy
+curl -fsSL https://get.creddy.dev/install.sh | sh
 creddy server
 
 # Create an agent identity
-creddy agent create deploy-bot --can github
-# → ckr_abc123...
+creddy agent create agent-12345 --can github:myorg/*
+# → client_id: agent_f8e7d6
+# → client_secret: cks_xyz789...
 
-# Agent requests ephemeral token
-export CREDDY_TOKEN=ckr_abc123
+# Agent gets credentials (CLI)
+export CREDDY_URL=http://localhost:8400
+export CREDDY_CLIENT_ID=agent_f8e7d6
+export CREDDY_CLIENT_SECRET=cks_xyz789
+
 creddy get github --ttl 10m
 # → ghs_xxxxx (expires in 10 minutes)`
 

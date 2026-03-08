@@ -1,7 +1,6 @@
 import Image from "next/image"
-import { Github } from "lucide-react"
+import { Github, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 
 export function Hero() {
   return (
@@ -19,40 +18,37 @@ export function Hero() {
       <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center gap-12 lg:flex-row lg:items-center lg:gap-16">
         {/* Left: text content */}
         <div className="flex flex-1 flex-col items-start text-left">
-          <Badge
-            variant="outline"
-            className="mb-6 border-border text-muted-foreground font-mono text-xs tracking-wide"
-          >
-            Open Source &middot; Apache 2.0 Licensed
-          </Badge>
 
           <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Stop sharing your keys with AI agents
+            OIDC identity for AI&nbsp;agents
           </h1>
 
           <p className="mt-6 max-w-lg text-pretty text-lg leading-relaxed text-muted-foreground">
-            Creddy is a self-hosted identity service that issues ephemeral, scoped
-            credentials to AI agents. Your master secrets are never shared with the agent.
+            Creddy is an OIDC provider for AI agents. Agents get their own identities 
+            and short-lived credentials — your secrets stay on the server.
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
             <Button asChild size="lg" className="gap-2 font-medium">
-              <a
-                href="https://github.com/getcreddy/creddy"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Github className="size-4" />
-                View on GitHub
+              <a href="/integrations">
+                View Integrations
+                <ArrowRight className="size-4" />
               </a>
             </Button>
             <Button
               asChild
               variant="outline"
               size="lg"
-              className="font-mono text-sm"
+              className="gap-2"
             >
-              <a href="#quickstart">{'$ creddy get github'}</a>
+              <a
+                href="https://github.com/getcreddy/creddy"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Github className="size-4" />
+                GitHub
+              </a>
             </Button>
           </div>
         </div>

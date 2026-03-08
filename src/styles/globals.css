@@ -3,73 +3,56 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Light mode defaults (for Nextra docs) */
+/* Light mode */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.15 0 0);
+  --card: oklch(0.99 0 0);
+  --card-foreground: oklch(0.15 0 0);
+  --popover: oklch(0.99 0 0);
+  --popover-foreground: oklch(0.15 0 0);
+  --primary: oklch(0.45 0.15 200);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.01 240);
+  --secondary-foreground: oklch(0.15 0 0);
+  --muted: oklch(0.96 0.01 240);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.96 0.01 240);
+  --accent-foreground: oklch(0.15 0 0);
+  --border: oklch(0.91 0.01 240);
+  --input: oklch(0.91 0.01 240);
+  --ring: oklch(0.45 0.15 200);
   --radius: 0.5rem;
 }
 
 /* Dark mode */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-}
-
-/* Landing page specific theme (always dark with cyan accent) */
-.landing {
   --background: oklch(0.12 0.02 240);
   --foreground: oklch(0.95 0 0);
   --card: oklch(0.15 0.02 240);
   --card-foreground: oklch(0.95 0 0);
   --popover: oklch(0.15 0.02 240);
   --popover-foreground: oklch(0.95 0 0);
-  --primary: oklch(0.8 0.13 195);
+  --primary: oklch(0.75 0.13 195);
   --primary-foreground: oklch(0.12 0.02 240);
   --secondary: oklch(0.19 0.02 240);
   --secondary-foreground: oklch(0.85 0 0);
-  --muted: oklch(0.18 0.015 240);
-  --muted-foreground: oklch(0.55 0.01 240);
-  --accent: oklch(0.8 0.13 195);
+  --muted: oklch(0.19 0.02 240);
+  --muted-foreground: oklch(0.6 0.01 240);
+  --accent: oklch(0.75 0.13 195);
   --accent-foreground: oklch(0.12 0.02 240);
-  --border: oklch(0.22 0.02 240);
-  --input: oklch(0.22 0.02 240);
-  --ring: oklch(0.8 0.13 195);
+  --border: oklch(0.25 0.02 240);
+  --input: oklch(0.25 0.02 240);
+  --ring: oklch(0.75 0.13 195);
 }
 
 @theme inline {
-  --font-sans: 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -88,7 +71,148 @@
 }
 
 @layer base {
-  html {
-    scroll-behavior: smooth;
+  * {
+    @apply border-border;
   }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Invertible diagrams for dark mode */
+.diagram-invertible {
+  width: 100%;
+  margin-bottom: 1.5rem;
+  border-radius: 0.5rem;
+}
+
+.dark .diagram-invertible {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Prose container for docs pages */
+.prose-container {
+  /* Better line heights and spacing for reading */
+  line-height: 1.75;
+}
+
+/* Code blocks inside prose */
+.prose-container pre {
+  /* Prevent code from breaking layout */
+  max-width: 100%;
+  padding: 1.25rem 1.5rem !important;
+}
+
+.prose-container pre code {
+  /* Ensure code text is visible */
+  color: #e4e4e7;
+  display: block;
+}
+
+.prose-container figure[data-rehype-pretty-code-figure] pre {
+  padding: 1.25rem 1.5rem !important;
+}
+
+.prose-container [data-line] {
+  padding-left: 0.25rem !important;
+  padding-right: 0.25rem !important;
+}
+
+/* ASCII diagram specific styling */
+.prose-container .ascii-diagram {
+  font-feature-settings: 'liga' 0;
+  letter-spacing: 0;
+}
+
+/* Better scrollbar for code blocks */
+.prose-container pre::-webkit-scrollbar {
+  height: 6px;
+}
+
+.prose-container pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prose-container pre::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.prose-container pre::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* Rehype Pretty Code styling */
+[data-rehype-pretty-code-figure] {
+  margin: 0;
+  margin-bottom: 1.25rem;
+  max-width: 100%;
+}
+
+[data-rehype-pretty-code-figure] pre {
+  background-color: #0d1117 !important;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1.25rem 1.5rem !important;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  max-width: 100%;
+}
+
+[data-rehype-pretty-code-figure] pre > code {
+  padding: 0 !important;
+}
+
+[data-rehype-pretty-code-figure] [data-line] {
+  padding: 0 0.5rem !important;
+  display: inline-block;
+  width: 100%;
+}
+
+[data-rehype-pretty-code-figure] code {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  display: block;
+  width: max-content;
+  min-width: 100%;
+}
+
+[data-rehype-pretty-code-figure] code[data-line-numbers] {
+  counter-reset: line;
+}
+
+[data-rehype-pretty-code-figure] code[data-line-numbers] > [data-line]::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 1rem;
+  margin-right: 1.5rem;
+  text-align: right;
+  color: #6e7681;
+}
+
+[data-rehype-pretty-code-figure] [data-line] {
+  padding: 0 0.25rem;
+}
+
+/* Code title/caption */
+[data-rehype-pretty-code-title] {
+  background-color: #161b22;
+  color: #8b949e;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  font-family: ui-monospace, monospace;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+[data-rehype-pretty-code-title] + pre {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: 0;
 }

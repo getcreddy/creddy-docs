@@ -15,19 +15,9 @@ Creddy uses Doppler's API to manage service tokens:
 3. Returns the token to the agent
 4. On TTL expiry or unenroll → Creddy revokes the token
 
-```
-┌─────────────┐  creddy get doppler    ┌─────────────┐
-│   Agent     │ ─────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────── │   Server    │
-└─────────────┘  dp.st.xxx (1h TTL)    └──────┬──────┘
-       │                                      │
-       │ doppler secrets                      │ Doppler API
-       ▼                                      ▼
-┌─────────────┐                        ┌─────────────┐
-│   Doppler   │                        │   Doppler   │
-│   Secrets   │                        │     API     │
-└─────────────┘                        └─────────────┘
-```
+<div className="diagram-invertible-wrapper">
+  <img src="/diagrams/doppler-flow.svg" alt="Doppler vend flow diagram" />
+</div>
 
 Unlike static service tokens that live forever, Creddy tokens are automatically cleaned up.
 
@@ -37,7 +27,13 @@ Unlike static service tokens that live forever, Creddy tokens are automatically 
 - **Workplace token** — With permission to create service tokens
 - **Projects configured** — The projects agents will access
 
-## Server Setup
+## Installation
+
+```bash
+creddy plugin install doppler
+```
+
+## Configuration
 
 ### 1. Get a Doppler Token
 
@@ -354,16 +350,3 @@ curl -s "https://api.doppler.com/v3/me" \
   -H "Authorization: Bearer $DOPPLER_TOKEN"
 ```
 
-## Version History
-
-### v0.1.2 (Latest)
-- Added: Config wildcard support (`doppler:project/*`)
-- Fixed: Token revocation on TTL expiry
-
-### v0.1.1
-- Added: Read-only scope modifier
-- Improved: Validation error messages
-
-### v0.1.0
-- Initial release
-- Basic service token generation

@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { Github, ArrowUpRight, Menu, X, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
 
 const tools = [
   { name: "OpenClaw", slug: "openclaw", icon: "🦞" },
@@ -12,7 +11,8 @@ const tools = [
   { name: "OpenCode", slug: "opencode", icon: "💻" },
 ]
 
-export function Navbar() {
+// Minimal navbar for home page - no theme toggle
+export function NavbarMinimal() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
 
@@ -85,17 +85,15 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          <ThemeToggle />
-          
-          <Button asChild variant="ghost" size="icon" className="size-9">
+        <div className="flex items-center gap-2">
+          <Button asChild variant="ghost" size="sm" className="gap-2">
             <a
               href="https://github.com/getcreddy/creddy"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="GitHub"
             >
               <Github className="size-4" />
+              <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
           

@@ -1,6 +1,3 @@
-// Updated _meta.ts for src/content/
-// Adds: plugins, policies, agents, upgrading, oidc
-
 export default {
   index: 'Introduction',
   'getting-started': 'Getting Started',
@@ -11,7 +8,6 @@ export default {
   plugins: 'Plugin Management',
   policies: 'Policies',
   agents: 'Agent Management',
-  integrations: 'Integrations',
   reference: 'Reference',
   examples: 'Examples',
   upgrading: 'Upgrading',
@@ -21,4 +17,5 @@ export default {
   },
   pricing: 'Pricing',
   contributing: 'Contributing',
+  integrations: 'Integrations',
 }

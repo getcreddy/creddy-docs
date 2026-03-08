@@ -3,9 +3,9 @@ import { AlertTriangle, ShieldOff, Eye, ArrowRight } from "lucide-react"
 const problems = [
   {
     icon: ShieldOff,
-    title: "Overprivileged agents",
+    title: "No agent identity",
     description:
-      "Agents get your personal tokens with full access. A single compromised agent exposes everything.",
+      "Agents use your personal tokens. No way to distinguish one agent from another or scope their access.",
   },
   {
     icon: Eye,
@@ -15,9 +15,9 @@ const problems = [
   },
   {
     icon: AlertTriangle,
-    title: "Credentials never expire",
+    title: "Shared secrets everywhere",
     description:
-      "Long-lived PATs and API keys sit in .env files and agent configs indefinitely. Rotation is manual.",
+      "Long-lived PATs and API keys copied into .env files and agent configs. If one leaks, everything is exposed.",
   },
 ]
 
@@ -28,11 +28,10 @@ export function Problem() {
         <div className="mb-12 max-w-2xl">
           <p className="mb-3 font-mono text-sm text-primary">The problem</p>
           <h2 className="text-balance text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Credential management for agents is broken
+            Agents need identities, not your keys
           </h2>
           <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
-            You wouldn&apos;t hand an intern your root SSH key. Why give an AI agent
-            your personal access tokens?
+            GitHub Actions uses OIDC to access AWS — no shared secrets. Your AI agents should work the same way.
           </p>
         </div>
 

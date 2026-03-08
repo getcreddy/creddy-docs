@@ -1,16 +1,10 @@
-import { Footer, Layout, Navbar } from 'nextra-theme-docs'
+import { Footer, Layout } from 'nextra-theme-docs'
 import { getPageMap } from 'nextra/page-map'
 import 'nextra-theme-docs/style.css'
 import { DocsChatSidebar } from '@/components/docs-chat'
+import { DocsNavbar } from '@/components/docs-navbar'
 
-const navbar = (
-  <Navbar
-    logo={<b>Creddy</b>}
-    projectLink="https://github.com/getcreddy/creddy"
-  />
-)
-
-const footer = <Footer>Apache 2.0 {new Date().getFullYear()} © Creddy</Footer>
+const footer = <Footer key="footer">Apache 2.0 {new Date().getFullYear()} © Creddy</Footer>
 
 export default async function DocsLayout({
   children,
@@ -20,16 +14,17 @@ export default async function DocsLayout({
   const pageMap = await getPageMap('/docs')
   
   return (
-    <>
+    <div key="docs-layout-wrapper">
       <Layout
-        navbar={navbar}
+        key="docs-layout"
+        navbar={<DocsNavbar key="docs-navbar" />}
         pageMap={pageMap}
         docsRepositoryBase="https://github.com/getcreddy/creddy-docs/tree/main"
         footer={footer}
       >
         {children}
       </Layout>
-      <DocsChatSidebar />
-    </>
+      <DocsChatSidebar key="docs-chat" />
+    </div>
   )
 }

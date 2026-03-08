@@ -1,4 +1,4 @@
-import { Navbar } from "@/components/navbar"
+import { NavbarMinimal } from "@/components/navbar-minimal"
 import { Hero } from "@/components/hero"
 import { Problem } from "@/components/problem"
 import { HowItWorks } from "@/components/how-it-works"
@@ -8,8 +8,8 @@ import { Footer } from "@/components/footer"
 
 export default function Page() {
   return (
-    <div className="landing min-h-screen bg-background text-foreground">
-      <Navbar />
+    <div className="min-h-screen bg-background text-foreground">
+      <NavbarMinimal />
       <main>
         <Hero />
         <div className="mx-auto max-w-5xl border-t border-border" />

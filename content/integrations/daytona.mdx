@@ -4,19 +4,9 @@ Creddy's Daytona plugin creates ephemeral API keys for managing Daytona workspac
 
 ## How It Works
 
-```
-┌─────────────┐    creddy get daytona    ┌─────────────┐
-│   Agent     │ ─────────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────────── │   Server    │
-└─────────────┘    API key (10 min TTL)   └──────┬──────┘
-       │                                          │
-       │ Create workspace                         │ Daytona API
-       ▼                                          ▼
-┌─────────────┐                            ┌─────────────┐
-│   Daytona   │ ◀─────────────────────────│   Daytona   │
-│  Workspace  │                            │   Cloud     │
-└─────────────┘                            └─────────────┘
-```
+<div className="diagram-invertible-wrapper">
+  <img src="/diagrams/daytona-flow.svg" alt="Daytona vend flow diagram" />
+</div>
 
 1. Agent requests `creddy get daytona`
 2. Creddy creates a scoped API key via Daytona's API

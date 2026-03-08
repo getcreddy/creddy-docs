@@ -28,7 +28,13 @@ Creddy's Replicated integration creates scoped Service Account tokens for the Ve
 - API token with permission to create Service Accounts
 - Team admin or owner role
 
-## Server Setup
+## Installation
+
+```bash
+creddy plugin install replicated
+```
+
+## Configuration
 
 ### 1. Get Admin API Token
 
@@ -207,9 +213,3 @@ creddy enroll --server ... --name monitor-bot \
 - Check the RBAC policy grants sufficient permissions
 - Try with `--app` flag explicitly
 
-## Version History
-
-### v0.1.0 (Latest)
-- Initial release
-- Service Account creation with RBAC policies
-- App and channel scoping
