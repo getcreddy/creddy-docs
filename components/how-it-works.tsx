@@ -1,4 +1,39 @@
+"use client"
+
 import { CodeBlock } from "@/components/code-block"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+
+const bashCode = `# Authenticate (OAuth 2.0 client credentials)
+ACCESS_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \\
+  -d "grant_type=client_credentials" \\
+  -d "client_id=agent_f8e7d6" \\
+  -d "client_secret=cks_xyz789" | jq -r .access_token)
+
+# Get GitHub token (10 min TTL)
+curl "$CREDDY_URL/v1/credentials/github" \\
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+# → { "token": "ghs_xxxxx" }`
+
+const nodeCode = `import { Issuer } from 'openid-client';
+
+// Discover OIDC configuration
+const issuer = await Issuer.discover(process.env.CREDDY_URL);
+const client = new issuer.Client({
+  client_id: 'agent_f8e7d6',
+  client_secret: 'cks_xyz789',
+});
+
+// Get access token
+const tokenSet = await client.grant({
+  grant_type: 'client_credentials',
+});
+
+// Get GitHub token
+const res = await fetch(\`\${process.env.CREDDY_URL}/v1/credentials/github\`, {
+  headers: { Authorization: \`Bearer \${tokenSet.access_token}\` },
+});
+const { token } = await res.json();
+// → ghs_xxxxx`
 
 const steps = [
   {
@@ -16,22 +51,6 @@ creddy agent create agent-12345 \\
   "client_id": "agent_f8e7d6",
   "client_secret": "cks_xyz789..."
 }`,
-  },
-  {
-    step: "02",
-    title: "Vend mode: get real tokens",
-    description:
-      "For services like GitHub, Creddy issues real short-lived tokens. Authenticate with your client credentials, then request a token.",
-    code: `# Authenticate (OAuth 2.0 client credentials)
-ACCESS_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \\
-  -d "grant_type=client_credentials" \\
-  -d "client_id=agent_f8e7d6" \\
-  -d "client_secret=cks_xyz789" | jq -r .access_token)
-
-# Get GitHub token (10 min TTL)
-curl "$CREDDY_URL/v1/credentials/github" \\
-  -H "Authorization: Bearer $ACCESS_TOKEN"
-# → { "token": "ghs_xxxxx" }`,
   },
   {
     step: "03",
@@ -62,25 +81,59 @@ export function HowItWorks() {
         </div>
 
         <div className="flex flex-col gap-16">
-          {steps.map((step) => (
-            <div
-              key={step.step}
-              className="grid items-start gap-8 lg:grid-cols-2"
-            >
-              <div>
-                <span className="font-mono text-sm text-primary">
-                  {step.step}
-                </span>
-                <h3 className="mt-2 text-xl font-semibold text-foreground">
-                  {step.title}
-                </h3>
-                <p className="mt-3 leading-relaxed text-muted-foreground">
-                  {step.description}
-                </p>
-              </div>
-              <CodeBlock code={step.code} />
+          {/* Step 01 */}
+          <div className="grid items-start gap-8 lg:grid-cols-2">
+            <div>
+              <span className="font-mono text-sm text-primary">01</span>
+              <h3 className="mt-2 text-xl font-semibold text-foreground">
+                {steps[0].title}
+              </h3>
+              <p className="mt-3 leading-relaxed text-muted-foreground">
+                {steps[0].description}
+              </p>
             </div>
-          ))}
+            <CodeBlock code={steps[0].code} />
+          </div>
+
+          {/* Step 02 - Vend mode with tabs */}
+          <div className="grid items-start gap-8 lg:grid-cols-2">
+            <div>
+              <span className="font-mono text-sm text-primary">02</span>
+              <h3 className="mt-2 text-xl font-semibold text-foreground">
+                Vend mode: get real tokens
+              </h3>
+              <p className="mt-3 leading-relaxed text-muted-foreground">
+                For services like GitHub, Creddy issues real short-lived tokens.
+                Authenticate with your client credentials, then request a token.
+              </p>
+            </div>
+            <Tabs defaultValue="bash" className="w-full">
+              <TabsList className="mb-2">
+                <TabsTrigger value="bash">Bash</TabsTrigger>
+                <TabsTrigger value="node">Node.js</TabsTrigger>
+              </TabsList>
+              <TabsContent value="bash">
+                <CodeBlock code={bashCode} />
+              </TabsContent>
+              <TabsContent value="node">
+                <CodeBlock code={nodeCode} />
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Step 03 */}
+          <div className="grid items-start gap-8 lg:grid-cols-2">
+            <div>
+              <span className="font-mono text-sm text-primary">03</span>
+              <h3 className="mt-2 text-xl font-semibold text-foreground">
+                {steps[1].title}
+              </h3>
+              <p className="mt-3 leading-relaxed text-muted-foreground">
+                {steps[1].description}
+              </p>
+            </div>
+            <CodeBlock code={steps[1].code} />
+          </div>
         </div>
       </div>
     </section>
