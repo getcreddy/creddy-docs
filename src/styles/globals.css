@@ -79,6 +79,17 @@
   }
 }
 
+/* Invertible diagrams for dark mode */
+.diagram-invertible {
+  width: 100%;
+  margin-bottom: 1.5rem;
+  border-radius: 0.5rem;
+}
+
+.dark .diagram-invertible {
+  filter: invert(1) hue-rotate(180deg);
+}
+
 /* Prose container for docs pages */
 .prose-container {
   /* Better line heights and spacing for reading */
