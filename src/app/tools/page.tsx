@@ -33,7 +33,7 @@ export default function ToolsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="mx-auto max-w-4xl px-6 pt-24 pb-16">
+      <main className="mx-auto max-w-4xl px-6 pt-32 pb-16">
         <div className="mb-12">
           <h1 style={{ fontSize: '2.25rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '1rem', lineHeight: 1.2, color: 'var(--foreground)' }}>
             Tool Configuration

@@ -223,7 +223,7 @@ export default async function ToolPage({
         }
       `}</style>
       <Navbar />
-      <main className="pt-24 pb-20 px-6">
+      <main className="pt-32 pb-20 px-6">
         <div className="mx-auto max-w-6xl">
           <div className="mb-8">
             <a 
