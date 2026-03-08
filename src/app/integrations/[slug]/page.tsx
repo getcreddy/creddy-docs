@@ -280,6 +280,21 @@ export default async function IntegrationPage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <style>{`
+        .prose-container pre {
+          padding: 1rem 1.25rem !important;
+        }
+        .prose-container figure pre {
+          padding: 1rem 1.25rem !important;
+        }
+        .prose-container [data-rehype-pretty-code-figure] pre {
+          padding: 1rem 1.25rem !important;
+        }
+        .prose-container code[data-theme] {
+          padding: 1rem 1.25rem !important;
+          display: block;
+        }
+      `}</style>
       <Navbar />
       <main className="pt-24 pb-20 px-6">
         <div className="mx-auto max-w-6xl">
