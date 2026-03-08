@@ -119,7 +119,7 @@ export default function IntegrationsPage() {
                 {items.map((integration) => (
                   <a
                     key={integration.slug}
-                    href={`/docs/integrations/${integration.slug}`}
+                    href={`/integrations/${integration.slug}`}
                     className="group rounded-lg border border-border bg-card p-5 transition-all hover:border-primary/30 hover:bg-card/80"
                   >
                     <div className="flex items-start justify-between mb-2">
@@ -149,7 +149,7 @@ export default function IntegrationsPage() {
               Create custom integrations for internal services or unsupported platforms.
             </p>
             <a 
-              href="/docs/integrations/building"
+              href="/integrations/building"
               className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors"
             >
               View plugin SDK docs
