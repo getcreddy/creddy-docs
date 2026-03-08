@@ -27,12 +27,12 @@ export function Hero() {
           </Badge>
 
           <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Stop sharing your keys with AI agents
+            OIDC identity for AI&nbsp;agents
           </h1>
 
           <p className="mt-6 max-w-lg text-pretty text-lg leading-relaxed text-muted-foreground">
-            Creddy is a self-hosted identity service that issues ephemeral, scoped
-            credentials to AI agents. Your master secrets are never shared with the agent.
+            Creddy is an OIDC provider for AI agents. Agents get their own identities 
+            and short-lived credentials — your secrets stay on the server.
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">

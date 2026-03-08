@@ -1,13 +1,19 @@
 import {
   Timer,
   Shield,
-  KeyRound,
+  Fingerprint,
   FileText,
   Server,
   Database,
 } from "lucide-react"
 
 const features = [
+  {
+    icon: Fingerprint,
+    title: "OIDC provider",
+    description:
+      "Standard OpenID Connect. Agents authenticate and get signed JWTs. Federate with AWS, GCP, and any OIDC-compatible service.",
+  },
   {
     icon: Timer,
     title: "Ephemeral credentials",
@@ -18,19 +24,13 @@ const features = [
     icon: Shield,
     title: "Agent isolation",
     description:
-      "Each agent gets scoped permissions. Agents never see master secrets or each other's credentials.",
-  },
-  {
-    icon: KeyRound,
-    title: "GPG signing keys",
-    description:
-      "Every agent gets its own GPG key for commit signing. Attributable, verifiable, auditable.",
+      "Each agent gets its own identity and scoped permissions. Agents never see master secrets or each other's credentials.",
   },
   {
     icon: FileText,
     title: "Full audit trail",
     description:
-      "Every credential request is logged with agent, service, timestamp, and expiration. Complete visibility.",
+      "Every credential request is logged with agent identity, service, timestamp, and expiration. Complete visibility.",
   },
   {
     icon: Server,
@@ -42,7 +42,7 @@ const features = [
     icon: Database,
     title: "Multi-backend",
     description:
-      "GitHub backend available today. AWS and Doppler coming soon. Extensible by design.",
+      "GitHub, Anthropic, OpenAI, Doppler, and more. For services without OIDC, Creddy exchanges identity for credentials.",
   },
 ]
 
