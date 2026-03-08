@@ -80,9 +80,9 @@ For long-running sessions, schedule periodic reloads before credentials expire:
 */30 * * * * openclaw secrets reload
 ```
 
-## Multiple Backends
+## Vend Mode Backends
 
-Define a provider for each Creddy backend you need:
+For backends where Creddy creates real tokens (GitHub, OpenAI, Tailscale, etc.), define an exec provider for each:
 
 ```json5
 {
@@ -95,10 +95,10 @@ Define a provider for each Creddy backend you need:
         passEnv: ["CREDDY_AGENT_TOKEN"],
         jsonOnly: false,
       },
-      creddy_anthropic: {
+      creddy_openai: {
         source: "exec",
         command: "creddy",
-        args: ["get", "anthropic", "--format", "token"],
+        args: ["get", "openai", "--format", "token"],
         passEnv: ["CREDDY_AGENT_TOKEN"],
         jsonOnly: false,
       },
@@ -113,6 +113,33 @@ Define a provider for each Creddy backend you need:
   },
 }
 ```
+
+## Proxy Mode Backends (Anthropic)
+
+Some providers like Anthropic don't support creating scoped API keys. For these, Creddy acts as a **proxy** — requests go through Creddy using your agent token, and Creddy forwards them with the real API key.
+
+Configure OpenClaw to use Creddy's proxy endpoint:
+
+```json5
+{
+  models: {
+    providers: {
+      anthropic: {
+        // Point to Creddy's proxy endpoint instead of api.anthropic.com
+        baseUrl: "http://localhost:8400/proxy/anthropic",
+        models: [{ id: "claude-sonnet-4-20250514", name: "Claude Sonnet" }],
+        // Use your Creddy agent token for auth
+        apiKey: { source: "env", provider: "default", id: "CREDDY_AGENT_TOKEN" },
+      },
+    },
+  },
+}
+```
+
+With proxy mode:
+- Requests flow through Creddy's proxy
+- Creddy authenticates the agent and injects your real Anthropic API key
+- Your Anthropic key never leaves the Creddy server
 
 ## Scoped Credentials
 
