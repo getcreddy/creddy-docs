@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const CONTENT_DIR = path.join(__dirname, '../src/content');
+const CONTENT_DIR = path.join(__dirname, '../content');
 const OUTPUT_FILE = path.join(__dirname, '../public/docs-context.txt');
 
 function extractTextFromMdx(content) {
