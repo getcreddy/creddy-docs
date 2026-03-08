@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Github, ArrowUpRight, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -43,15 +44,16 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="gap-2">
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Button asChild variant="ghost" size="sm" className="size-9 p-0">
             <a
               href="https://github.com/getcreddy/creddy"
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Github className="size-3.5" />
-              <span className="hidden sm:inline">GitHub</span>
+              <Github className="size-4" />
+              <span className="sr-only">GitHub</span>
             </a>
           </Button>
           
@@ -59,10 +61,10 @@ export function Navbar() {
           <Button
             variant="ghost"
             size="sm"
-            className="sm:hidden"
+            className="size-9 p-0 sm:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            {mobileMenuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
           </Button>
         </div>
       </nav>
