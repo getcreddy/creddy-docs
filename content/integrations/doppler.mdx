@@ -15,19 +15,9 @@ Creddy uses Doppler's API to manage service tokens:
 3. Returns the token to the agent
 4. On TTL expiry or unenroll → Creddy revokes the token
 
-```
-┌─────────────┐  creddy get doppler    ┌─────────────┐
-│   Agent     │ ─────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────── │   Server    │
-└─────────────┘  dp.st.xxx (1h TTL)    └──────┬──────┘
-       │                                      │
-       │ doppler secrets                      │ Doppler API
-       ▼                                      ▼
-┌─────────────┐                        ┌─────────────┐
-│   Doppler   │                        │   Doppler   │
-│   Secrets   │                        │     API     │
-└─────────────┘                        └─────────────┘
-```
+<div className="diagram-invertible-wrapper">
+  <img src="/diagrams/doppler-flow.svg" alt="Doppler vend flow diagram" />
+</div>
 
 Unlike static service tokens that live forever, Creddy tokens are automatically cleaned up.
 

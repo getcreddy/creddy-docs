@@ -7,19 +7,9 @@ Creddy's Docker Hub integration creates scoped Personal Access Tokens for your A
 
 ## How It Works
 
-```
-┌─────────────┐    creddy get dockerhub    ┌─────────────┐
-│   Agent     │ ─────────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────────── │   Server    │
-└─────────────┘     dckr_pat_xxx (TTL)     └──────┬──────┘
-       │                                          │
-       │ docker pull/push                         │ Hub API
-       ▼                                          ▼
-┌─────────────┐                            ┌─────────────┐
-│ Docker Hub  │                            │ Docker Hub  │
-│  Registry   │                            │     API     │
-└─────────────┘                            └─────────────┘
-```
+<div className="diagram-invertible-wrapper">
+  <img src="/diagrams/dockerhub-flow.svg" alt="Docker Hub vend flow diagram" />
+</div>
 
 ## Requirements
 
