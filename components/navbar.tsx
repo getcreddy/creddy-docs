@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { Github, ArrowUpRight, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/theme-toggle"
 
-export function Navbar() {
+export function Navbar({ showThemeToggle = false }: { showThemeToggle?: boolean }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
@@ -54,6 +55,8 @@ export function Navbar() {
               <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
+          
+          {showThemeToggle && <ThemeToggle />}
           
           {/* Mobile menu button */}
           <Button

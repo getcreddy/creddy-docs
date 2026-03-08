@@ -78,3 +78,45 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Prose container for docs pages */
+.prose-container {
+  /* Better line heights and spacing for reading */
+  line-height: 1.75;
+}
+
+/* Code blocks inside prose */
+.prose-container pre {
+  /* Prevent code from breaking layout */
+  max-width: 100%;
+}
+
+.prose-container pre code {
+  /* Ensure code text is visible */
+  color: #e4e4e7;
+  display: block;
+}
+
+/* ASCII diagram specific styling */
+.prose-container .ascii-diagram {
+  font-feature-settings: 'liga' 0;
+  letter-spacing: 0;
+}
+
+/* Better scrollbar for code blocks */
+.prose-container pre::-webkit-scrollbar {
+  height: 6px;
+}
+
+.prose-container pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prose-container pre::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.prose-container pre::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
