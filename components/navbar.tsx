@@ -44,19 +44,19 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm" className="gap-2">
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          
+          <Button asChild variant="ghost" size="icon" className="size-9">
             <a
               href="https://github.com/getcreddy/creddy"
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="GitHub"
             >
               <Github className="size-4" />
-              <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
-          
-          <ThemeToggle />
           
           {/* Mobile menu button */}
           <Button
