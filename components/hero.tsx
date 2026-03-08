@@ -53,14 +53,21 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Right: hero image in dark container */}
+        {/* Right: hero image - dark bg only in light mode */}
         <div className="relative flex-1 lg:flex lg:justify-end">
-          <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg rounded-2xl overflow-hidden bg-[#0c1220]">
+          <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg rounded-2xl overflow-hidden bg-[#0c1220] dark:bg-transparent">
             <div
-              className="pointer-events-none absolute -inset-4 z-10"
+              className="pointer-events-none absolute -inset-4 z-10 dark:hidden"
               style={{
                 background:
                   "radial-gradient(ellipse at center, transparent 40%, #0c1220 75%)",
+              }}
+            />
+            <div
+              className="pointer-events-none absolute -inset-8 z-10 hidden dark:block"
+              style={{
+                background:
+                  "radial-gradient(ellipse at center, transparent 35%, var(--background) 70%)",
               }}
             />
             <Image
