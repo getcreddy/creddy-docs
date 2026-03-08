@@ -7,7 +7,7 @@ const steps = [
     description:
       "Register each agent with scoped permissions. Creddy acts as an OIDC provider — agents get verifiable identities, not shared secrets.",
     code: `# Create an agent identity
-creddy agent create deploy-bot \\
+creddy agent create agent-12345 \\
   --can github:myorg/*`,
   },
   {
@@ -20,7 +20,7 @@ TOKEN=$(creddy get token)
 
 # Token contains identity claims
 {
-  "sub": "agent:deploy-bot",
+  "sub": "agent:agent-12345",
   "iss": "https://creddy.example.com",
   "scope": "github:myorg/*",
   "exp": 1709856000
