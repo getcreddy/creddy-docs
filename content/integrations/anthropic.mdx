@@ -6,28 +6,7 @@ Agents get short-lived `crd_xxx` tokens that work through Creddy's proxy endpoin
 
 ## How It Works
 
-```
-┌─────────────┐    creddy get anthropic    ┌─────────────┐
-│   Agent     │ ─────────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────────── │   Server    │
-└─────────────┘    crd_xxx (10 min TTL)    │   :8400     │
-       │                                   └──────┬──────┘
-       │                                          │
-       │ POST /v1/proxy/anthropic/v1/messages     │
-       │─────────────────────────────────────────▶│
-       │                                          │
-       │                                   ┌──────┴──────┐
-       │                                   │  Anthropic  │
-       │                                   │   Plugin    │
-       │                                   └──────┬──────┘
-       │                                          │ Validates crd_xxx
-       │                                          │ Swaps for sk-ant-xxx
-       │                                          ▼
-       │                                   ┌─────────────┐
-       │◀──────────────────────────────────│  Anthropic  │
-       │           response                │     API     │
-                                           └─────────────┘
-```
+![Anthropic proxy flow diagram](/diagrams/anthropic-flow.svg)
 
 1. Agent requests `creddy get anthropic`
 2. Plugin generates a short-lived `crd_xxx` token
