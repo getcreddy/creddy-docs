@@ -318,7 +318,7 @@ export default async function IntegrationPage({
         }
       `}</style>
       <Navbar />
-      <main style={{ paddingTop: '8rem', paddingBottom: '5rem', paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
+      <main style={{ paddingTop: '6.5rem', paddingBottom: '5rem', paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
         <div className="mx-auto max-w-6xl">
           <div className="mb-8">
             <a 
