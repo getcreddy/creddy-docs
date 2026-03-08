@@ -1,5 +1,5 @@
 import Image from "next/image"
-import { Github } from "lucide-react"
+import { Github, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export function Hero() {
@@ -30,22 +30,25 @@ export function Hero() {
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
             <Button asChild size="lg" className="gap-2 font-medium">
-              <a
-                href="https://github.com/getcreddy/creddy"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Github className="size-4" />
-                View on GitHub
+              <a href="/integrations">
+                View Integrations
+                <ArrowRight className="size-4" />
               </a>
             </Button>
             <Button
               asChild
               variant="outline"
               size="lg"
-              className="font-mono text-sm"
+              className="gap-2"
             >
-              <a href="#quickstart">{'$ creddy get github'}</a>
+              <a
+                href="https://github.com/getcreddy/creddy"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Github className="size-4" />
+                GitHub
+              </a>
             </Button>
           </div>
         </div>
