@@ -7,7 +7,7 @@ export function Hero() {
     <section className="relative overflow-hidden px-6 pt-28 pb-16 lg:pt-36 lg:pb-20">
       {/* Subtle grid pattern */}
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        className="pointer-events-none absolute inset-0 opacity-[0.03] dark:opacity-[0.03]"
         style={{
           backgroundImage:
             "linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)",
@@ -53,8 +53,8 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Right: hero image */}
-        <div className="relative flex-1 lg:flex lg:justify-end">
+        {/* Right: hero image - dark mode only */}
+        <div className="relative flex-1 lg:flex lg:justify-end hidden dark:block">
           <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg">
             <div
               className="pointer-events-none absolute -inset-8 z-10"
