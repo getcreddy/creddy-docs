@@ -1,65 +1,148 @@
 # OpenClaw + Creddy
 
-Configure OpenClaw to use Creddy for secure credential management.
+Configure OpenClaw to use Creddy for credential management via the exec secret provider.
 
 ## Overview
 
-OpenClaw is an AI agent framework that supports credential management out of the box. With Creddy integration, your OpenClaw agents get their own identities and can request scoped, short-lived credentials for external services.
+OpenClaw's [secrets management](https://docs.openclaw.ai/gateway/secrets) supports external credential providers through the `exec` source. You can configure OpenClaw to fetch credentials from Creddy at startup and on reload.
 
 ## Prerequisites
 
 - OpenClaw installed and running
-- Creddy server running (locally or remote)
-- Agent enrolled in Creddy
+- Creddy server running with backends configured
+- Creddy CLI installed and agent enrolled
 
 ## Configuration
 
-Add the Creddy configuration to your OpenClaw config file:
+Add Creddy as an exec secret provider in your OpenClaw config:
 
-```yaml
-# ~/.openclaw/config.yaml
-credentials:
-  provider: creddy
-  server: http://localhost:8400
-  agent_token: $CREDDY_AGENT_TOKEN
+```json5
+// ~/.openclaw/openclaw.json
+{
+  secrets: {
+    providers: {
+      creddy_github: {
+        source: "exec",
+        command: "/usr/local/bin/creddy",
+        args: ["get", "github", "--format", "token"],
+        passEnv: ["CREDDY_AGENT_TOKEN", "CREDDY_SERVER"],
+        jsonOnly: false,
+      },
+      creddy_openai: {
+        source: "exec",
+        command: "/usr/local/bin/creddy",
+        args: ["get", "openai", "--format", "token"],
+        passEnv: ["CREDDY_AGENT_TOKEN", "CREDDY_SERVER"],
+        jsonOnly: false,
+      },
+    },
+  },
+}
 ```
 
-## Environment Variables
+## Using Credentials
 
-Set your agent token as an environment variable:
+Reference the Creddy providers anywhere OpenClaw accepts SecretRefs:
+
+```json5
+{
+  models: {
+    providers: {
+      openai: {
+        apiKey: { source: "exec", provider: "creddy_openai", id: "value" },
+      },
+    },
+  },
+}
+```
+
+## Environment Setup
+
+Set your Creddy agent token before starting OpenClaw:
 
 ```bash
-export CREDDY_AGENT_TOKEN="your-agent-token-here"
+export CREDDY_AGENT_TOKEN="your-agent-token"
+export CREDDY_SERVER="http://localhost:8400"  # optional, defaults to localhost
 ```
 
-## Usage
+## Credential Lifecycle
 
-Once configured, OpenClaw will automatically use Creddy for credential requests:
+OpenClaw resolves secrets **eagerly at startup** and caches them in memory. Credentials are refreshed when you:
+
+- Restart the gateway
+- Run `openclaw secrets reload`
+- Trigger a config reload
+
+For long-running sessions, schedule periodic reloads before credentials expire:
 
 ```bash
-# OpenClaw will request credentials from Creddy automatically
-openclaw run "Clone the repo and create a PR"
+# Reload secrets every 30 minutes
+*/30 * * * * openclaw secrets reload
 ```
 
-Or explicitly request credentials in your agent code:
+## Multiple Backends
 
-```python
-creds = await creddy.get("github")
+Define a provider for each Creddy backend you need:
+
+```json5
+{
+  secrets: {
+    providers: {
+      creddy_github: {
+        source: "exec",
+        command: "creddy",
+        args: ["get", "github", "--format", "token"],
+        passEnv: ["CREDDY_AGENT_TOKEN"],
+        jsonOnly: false,
+      },
+      creddy_anthropic: {
+        source: "exec",
+        command: "creddy",
+        args: ["get", "anthropic", "--format", "token"],
+        passEnv: ["CREDDY_AGENT_TOKEN"],
+        jsonOnly: false,
+      },
+      creddy_tailscale: {
+        source: "exec",
+        command: "creddy",
+        args: ["get", "tailscale", "--format", "token"],
+        passEnv: ["CREDDY_AGENT_TOKEN"],
+        jsonOnly: false,
+      },
+    },
+  },
+}
 ```
 
-## Supported Integrations
+## Scoped Credentials
 
-OpenClaw + Creddy supports all Creddy integrations:
+For backends that support scopes, include them in the args:
 
-- **GitHub** — installation tokens
-- **OpenAI** — API keys
-- **Anthropic** — API keys
-- **Tailscale** — auth keys
-- **And more...**
+```json5
+{
+  creddy_github_myrepo: {
+    source: "exec",
+    command: "creddy",
+    args: ["get", "github", "--scope", "repo:myorg/myrepo", "--format", "token"],
+    passEnv: ["CREDDY_AGENT_TOKEN"],
+    jsonOnly: false,
+  },
+}
+```
+
+## Current Limitations
+
+- **No automatic refresh on 401** — if credentials expire mid-session, OpenClaw won't automatically re-fetch from Creddy. Use `openclaw secrets reload` or restart.
+- **Static scopes** — each provider config has fixed args. For dynamic scopes, define multiple providers.
 
 ## Security Benefits
 
-- **No hardcoded secrets** — credentials are fetched at runtime
-- **Short-lived tokens** — credentials expire automatically
+- **No plaintext secrets in config** — credentials are fetched from Creddy at runtime
+- **Centralized management** — rotate credentials in Creddy, reload in OpenClaw
+- **Audit trail** — Creddy logs all credential requests
 - **Scoped access** — agents only get the permissions they need
-- **Audit trail** — all credential requests are logged
+
+## Related Docs
+
+- [OpenClaw Secrets Management](https://docs.openclaw.ai/gateway/secrets)
+- [SecretRef Credential Surface](https://docs.openclaw.ai/reference/secretref-credential-surface)
