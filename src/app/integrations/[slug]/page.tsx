@@ -238,10 +238,10 @@ export default async function IntegrationPage({
             </article>
             
             {/* Table of Contents */}
-            <aside className="w-64 shrink-0 bg-red-500 p-4">
-              <p className="text-white font-bold">TOC DEBUG - {headings.length} headings</p>
+            <aside style={{ width: 250, flexShrink: 0, backgroundColor: 'red', padding: 16 }}>
+              <p style={{ color: 'white', fontWeight: 'bold' }}>TOC DEBUG - {headings.length} headings</p>
               {headings.slice(0, 5).map((h) => (
-                <p key={h.id} className="text-white text-sm">{h.text}</p>
+                <p key={h.id} style={{ color: 'white', fontSize: 14 }}>{h.text}</p>
               ))}
             </aside>
           </div>
