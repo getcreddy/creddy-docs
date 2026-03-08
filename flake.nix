@@ -16,9 +16,12 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             nodejs_22
+            git
           ];
 
           shellHook = ''
+            unset NO_COLOR
+            export TERM=''${TERM:-xterm-256color}
             echo "Creddy docs dev environment"
             echo "Node.js $(node --version)"
           '';

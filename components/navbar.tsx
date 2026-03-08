@@ -20,19 +20,10 @@ export function Navbar() {
           {/* Desktop nav */}
           <div className="hidden items-center gap-4 sm:flex">
             <a
-              href="https://agenticdevloop.com/guides/identity-secrets-trust"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-sm text-primary transition-colors hover:text-primary/80"
-            >
-              Why?
-              <ArrowUpRight className="size-3" />
-            </a>
-            <a
-              href="#quickstart"
+              href="/integrations"
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              Quick Start
+              Integrations
             </a>
             <a
               href="/docs"
@@ -40,17 +31,26 @@ export function Navbar() {
             >
               Docs
             </a>
+            <a
+              href="https://agenticdevloop.com/guides/identity-secrets-trust"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Why?
+              <ArrowUpRight className="size-3" />
+            </a>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm" className="gap-2">
+          <Button asChild variant="ghost" size="sm" className="gap-2">
             <a
               href="https://github.com/getcreddy/creddy"
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Github className="size-3.5" />
+              <Github className="size-4" />
               <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
@@ -72,21 +72,11 @@ export function Navbar() {
         <div className="border-t border-border/50 bg-background/95 backdrop-blur-md sm:hidden">
           <div className="mx-auto max-w-5xl px-6 py-4 flex flex-col gap-4">
             <a
-              href="https://agenticdevloop.com/guides/identity-secrets-trust"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-sm text-primary transition-colors hover:text-primary/80"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Why?
-              <ArrowUpRight className="size-3" />
-            </a>
-            <a
-              href="#quickstart"
+              href="/integrations"
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               onClick={() => setMobileMenuOpen(false)}
             >
-              Quick Start
+              Integrations
             </a>
             <a
               href="/docs"
@@ -94,6 +84,16 @@ export function Navbar() {
               onClick={() => setMobileMenuOpen(false)}
             >
               Docs
+            </a>
+            <a
+              href="https://agenticdevloop.com/guides/identity-secrets-trust"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Why?
+              <ArrowUpRight className="size-3" />
             </a>
           </div>
         </div>
