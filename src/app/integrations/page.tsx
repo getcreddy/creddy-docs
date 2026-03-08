@@ -30,13 +30,6 @@ const integrations = {
   ],
   "Cloud & Infrastructure": [
     {
-      name: "AWS",
-      slug: "aws",
-      description: "STS credentials via OIDC federation",
-      version: "soon",
-      mode: "federation",
-    },
-    {
       name: "Tailscale",
       slug: "tailscale",
       description: "Auth keys for device registration", 
