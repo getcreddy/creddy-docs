@@ -68,7 +68,6 @@ export default async function IntegrationPage({
 
   // Extract headings for TOC
   const headings = extractHeadings(source)
-  console.log('TOC headings:', headings.length, headings.slice(0, 3))
 
   const { content } = await compileMDX({
     source,
@@ -238,11 +237,30 @@ export default async function IntegrationPage({
             </article>
             
             {/* Table of Contents */}
-            <aside style={{ width: 250, flexShrink: 0, backgroundColor: 'red', padding: 16 }}>
-              <p style={{ color: 'white', fontWeight: 'bold' }}>TOC DEBUG - {headings.length} headings</p>
-              {headings.slice(0, 5).map((h) => (
-                <p key={h.id} style={{ color: 'white', fontSize: 14 }}>{h.text}</p>
-              ))}
+            <aside style={{ width: 220, flexShrink: 0, paddingLeft: 24, borderLeft: '1px solid var(--border)' }}>
+              <nav style={{ position: 'sticky', top: 96 }}>
+                <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--muted-foreground)', marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  On this page
+                </p>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {headings.filter(h => h.level <= 2).map((h) => (
+                    <li key={h.id} style={{ marginBottom: 8 }}>
+                      <a 
+                        href={`#${h.id}`} 
+                        style={{ 
+                          fontSize: 14, 
+                          color: 'var(--muted-foreground)',
+                          textDecoration: 'none',
+                          display: 'block',
+                          paddingLeft: h.level === 2 ? 0 : 12
+                        }}
+                      >
+                        {h.text}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
             </aside>
           </div>
         </div>
