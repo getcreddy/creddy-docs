@@ -81,63 +81,63 @@ export default async function IntegrationPage({
       h1: (props) => (
         <h1 
           id={slugify(String(props.children))}
-          className="text-3xl font-bold tracking-tight mb-6 text-foreground" 
+          style={{ fontSize: '2.25rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '1.5rem', lineHeight: 1.2, color: 'var(--foreground)' }}
           {...props} 
         />
       ),
       h2: (props) => (
         <h2 
           id={slugify(String(props.children))}
-          className="text-2xl font-semibold mt-12 mb-4 pt-6 border-t border-border text-foreground scroll-mt-24" 
+          style={{ fontSize: '1.5rem', fontWeight: 600, marginTop: '3rem', marginBottom: '1rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)', lineHeight: 1.3, color: 'var(--foreground)', scrollMarginTop: '5rem' }}
           {...props} 
         />
       ),
       h3: (props) => (
         <h3 
           id={slugify(String(props.children))}
-          className="text-xl font-semibold mt-8 mb-3 text-foreground scroll-mt-24" 
+          style={{ fontSize: '1.25rem', fontWeight: 600, marginTop: '2rem', marginBottom: '0.75rem', lineHeight: 1.4, color: 'var(--foreground)', scrollMarginTop: '5rem' }}
           {...props} 
         />
       ),
       h4: (props) => (
         <h4 
-          className="text-lg font-semibold mt-6 mb-2 text-foreground" 
+          style={{ fontSize: '1.125rem', fontWeight: 600, marginTop: '1.5rem', marginBottom: '0.5rem', color: 'var(--foreground)' }}
           {...props} 
         />
       ),
       p: (props) => (
         <p 
-          className="text-muted-foreground leading-7 mb-4" 
+          style={{ fontSize: '1rem', lineHeight: 1.75, marginBottom: '1.25rem', color: 'var(--foreground)' }}
           {...props} 
         />
       ),
       a: (props) => (
         <a 
-          className="text-primary hover:text-primary/80 underline underline-offset-4 transition-colors" 
+          style={{ color: 'var(--primary)', textDecoration: 'underline', textUnderlineOffset: '3px' }}
           {...props} 
         />
       ),
       ul: (props) => (
         <ul 
-          className="list-disc list-outside ml-6 mb-4 text-muted-foreground space-y-2" 
+          style={{ listStyleType: 'disc', paddingLeft: '1.5rem', marginBottom: '1.25rem', lineHeight: 1.75 }}
           {...props} 
         />
       ),
       ol: (props) => (
         <ol 
-          className="list-decimal list-outside ml-6 mb-4 text-muted-foreground space-y-2" 
+          style={{ listStyleType: 'decimal', paddingLeft: '1.5rem', marginBottom: '1.25rem', lineHeight: 1.75 }}
           {...props} 
         />
       ),
       li: (props) => (
         <li 
-          className="leading-7 pl-1" 
+          style={{ marginTop: '0.5rem', paddingLeft: '0.25rem' }}
           {...props} 
         />
       ),
       strong: (props) => (
         <strong 
-          className="font-semibold text-foreground" 
+          style={{ fontWeight: 600, color: 'var(--foreground)' }}
           {...props} 
         />
       ),
@@ -147,11 +147,18 @@ export default async function IntegrationPage({
         const isBlock = content.includes('\n')
         
         if (isBlock) {
-          return <code className="block text-sm" {...props} />
+          return <code style={{ display: 'block', fontSize: '0.875rem' }} {...props} />
         }
         return (
           <code 
-            className="bg-secondary/80 dark:bg-secondary px-1.5 py-0.5 rounded text-sm font-mono text-foreground border border-border/50" 
+            style={{ 
+              backgroundColor: 'var(--secondary)', 
+              padding: '0.125rem 0.375rem', 
+              borderRadius: '0.25rem', 
+              fontSize: '0.875rem', 
+              fontFamily: 'var(--font-mono), ui-monospace, monospace',
+              border: '1px solid var(--border)'
+            }}
             {...props} 
           />
         )
@@ -166,10 +173,9 @@ export default async function IntegrationPage({
         
         if (isDiagram) {
           return (
-            <div className="my-6 rounded-lg border border-border bg-muted/30 dark:bg-muted/50 overflow-x-auto">
+            <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)', backgroundColor: 'var(--muted)', overflowX: 'auto' }}>
               <pre 
-                className="p-4 text-xs sm:text-sm font-mono text-foreground leading-tight whitespace-pre overflow-x-auto"
-                style={{ fontFamily: 'var(--font-jetbrains), ui-monospace, monospace' }}
+                style={{ padding: '1rem', fontSize: '0.8rem', fontFamily: 'ui-monospace, monospace', lineHeight: 1.4, whiteSpace: 'pre', overflowX: 'auto' }}
                 {...props} 
               />
             </div>
@@ -178,39 +184,58 @@ export default async function IntegrationPage({
         
         return (
           <pre 
-            className="bg-zinc-950 dark:bg-zinc-900 border border-border rounded-lg p-4 overflow-x-auto mb-4 text-sm font-mono leading-relaxed"
-            style={{ fontFamily: 'var(--font-jetbrains), ui-monospace, monospace' }}
+            style={{ 
+              backgroundColor: '#0a0a0a', 
+              border: '1px solid var(--border)', 
+              borderRadius: '0.5rem', 
+              padding: '1rem', 
+              overflowX: 'auto', 
+              marginBottom: '1.25rem', 
+              fontSize: '0.875rem', 
+              fontFamily: 'ui-monospace, monospace',
+              lineHeight: 1.6
+            }}
             {...props} 
           />
         )
       },
       blockquote: (props) => (
         <blockquote 
-          className="border-l-4 border-primary/50 bg-primary/5 dark:bg-primary/10 pl-4 pr-4 py-3 my-6 rounded-r text-muted-foreground [&>p]:mb-0" 
+          style={{
+            borderLeft: '4px solid var(--primary)',
+            backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)',
+            paddingLeft: '1rem',
+            paddingRight: '1rem',
+            paddingTop: '0.75rem',
+            paddingBottom: '0.75rem',
+            marginTop: '1.5rem',
+            marginBottom: '1.5rem',
+            borderRadius: '0 0.375rem 0.375rem 0'
+          }}
           {...props} 
         />
       ),
       table: (props) => (
-        <div className="overflow-x-auto my-6 rounded-lg border border-border">
-          <table className="w-full text-sm" {...props} />
+        <div style={{ overflowX: 'auto', marginTop: '1.5rem', marginBottom: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
+          <table style={{ width: '100%', fontSize: '0.875rem' }} {...props} />
         </div>
       ),
       thead: (props) => (
-        <thead className="bg-secondary/50 dark:bg-secondary" {...props} />
+        <thead style={{ backgroundColor: 'var(--secondary)' }} {...props} />
       ),
       tbody: (props) => (
-        <tbody className="divide-y divide-border" {...props} />
+        <tbody {...props} />
       ),
       tr: (props) => (
-        <tr className="hover:bg-secondary/30 dark:hover:bg-secondary/50 transition-colors" {...props} />
+        <tr style={{ borderBottom: '1px solid var(--border)' }} {...props} />
       ),
       th: (props) => (
-        <th className="text-left font-semibold px-4 py-3 text-foreground" {...props} />
+        <th style={{ textAlign: 'left', fontWeight: 600, padding: '0.75rem 1rem', color: 'var(--foreground)' }} {...props} />
       ),
       td: (props) => (
-        <td className="px-4 py-3 text-muted-foreground" {...props} />
+        <td style={{ padding: '0.75rem 1rem' }} {...props} />
       ),
-      hr: () => <hr className="border-border my-8" />,
+      hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', marginTop: '2rem', marginBottom: '2rem' }} />,
     },
   })
 
