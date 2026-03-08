@@ -1,0 +1,65 @@
+# OpenClaw + Creddy
+
+Configure OpenClaw to use Creddy for secure credential management.
+
+## Overview
+
+OpenClaw is an AI agent framework that supports credential management out of the box. With Creddy integration, your OpenClaw agents get their own identities and can request scoped, short-lived credentials for external services.
+
+## Prerequisites
+
+- OpenClaw installed and running
+- Creddy server running (locally or remote)
+- Agent enrolled in Creddy
+
+## Configuration
+
+Add the Creddy configuration to your OpenClaw config file:
+
+```yaml
+# ~/.openclaw/config.yaml
+credentials:
+  provider: creddy
+  server: http://localhost:8400
+  agent_token: $CREDDY_AGENT_TOKEN
+```
+
+## Environment Variables
+
+Set your agent token as an environment variable:
+
+```bash
+export CREDDY_AGENT_TOKEN="your-agent-token-here"
+```
+
+## Usage
+
+Once configured, OpenClaw will automatically use Creddy for credential requests:
+
+```bash
+# OpenClaw will request credentials from Creddy automatically
+openclaw run "Clone the repo and create a PR"
+```
+
+Or explicitly request credentials in your agent code:
+
+```python
+creds = await creddy.get("github")
+```
+
+## Supported Integrations
+
+OpenClaw + Creddy supports all Creddy integrations:
+
+- **GitHub** — installation tokens
+- **OpenAI** — API keys
+- **Anthropic** — API keys
+- **Tailscale** — auth keys
+- **And more...**
+
+## Security Benefits
+
+- **No hardcoded secrets** — credentials are fetched at runtime
+- **Short-lived tokens** — credentials expire automatically
+- **Scoped access** — agents only get the permissions they need
+- **Audit trail** — all credential requests are logged

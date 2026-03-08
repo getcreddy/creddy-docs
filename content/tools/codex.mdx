@@ -1,0 +1,72 @@
+# Codex CLI + Creddy
+
+Configure OpenAI's Codex CLI to use Creddy for credentials.
+
+## Overview
+
+Codex CLI is OpenAI's terminal-based coding assistant. It needs access to both OpenAI's API and often GitHub for repository access. Creddy can provide both credentials securely.
+
+## Prerequisites
+
+- Codex CLI installed
+- Creddy server running with OpenAI and/or GitHub integrations
+- Agent enrolled in Creddy with appropriate scopes
+
+## Configuration
+
+Create a wrapper script that injects credentials from Creddy:
+
+```bash
+# ~/bin/codex-creddy
+#!/bin/bash
+
+# Fetch OpenAI API key from Creddy
+export OPENAI_API_KEY=$(creddy get openai --format token)
+
+# Optionally fetch GitHub token for repo access
+export GITHUB_TOKEN=$(creddy get github --format token)
+
+# Run Codex with the credentials
+exec codex "$@"
+```
+
+## Shell Integration
+
+Add to your shell profile:
+
+```bash
+# ~/.zshrc or ~/.bashrc
+codex() {
+  OPENAI_API_KEY=$(creddy get openai --format token) \
+  GITHUB_TOKEN=$(creddy get github --format token) \
+    command codex "$@"
+}
+```
+
+## Why Use Creddy for OpenAI?
+
+With the OpenAI integration, Creddy uses OpenAI's Admin API to create project-scoped API keys:
+
+- **Project isolation** — keys are scoped to specific projects
+- **Usage tracking** — each agent's usage is tracked separately
+- **Automatic cleanup** — keys are revoked when the agent is unenrolled
+- **Rate limiting** — set per-agent rate limits via OpenAI projects
+
+## Usage
+
+Use Codex normally — credentials are injected automatically:
+
+```bash
+# Credentials are fetched automatically
+codex "Add error handling to the API routes"
+
+# Or for a specific task
+codex --task "Refactor the auth module to use JWT"
+```
+
+## Security Notes
+
+- OpenAI keys are project-scoped (not your main API key)
+- GitHub tokens are repository-scoped and time-limited
+- All credential requests are logged in Creddy
+- Revoke access instantly by unenrolling the agent

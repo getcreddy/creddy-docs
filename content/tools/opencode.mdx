@@ -1,0 +1,88 @@
+# OpenCode + Creddy
+
+Configure OpenCode to use Creddy for secure credential management.
+
+## Overview
+
+OpenCode is an open source AI coding assistant that runs in your terminal. Integrate it with Creddy to give it secure, scoped access to your development resources.
+
+## Prerequisites
+
+- OpenCode installed (`go install github.com/opencode-ai/opencode@latest`)
+- Creddy server running
+- Agent enrolled in Creddy
+
+## Configuration
+
+OpenCode supports configuration via environment variables or a config file.
+
+### Environment Variables
+
+```bash
+# Shell function that injects credentials
+opencode() {
+  export ANTHROPIC_API_KEY=$(creddy get anthropic --format token)
+  export OPENAI_API_KEY=$(creddy get openai --format token)
+  export GITHUB_TOKEN=$(creddy get github --format token)
+  command opencode "$@"
+}
+```
+
+### Config File
+
+Alternatively, configure OpenCode to use a credential helper:
+
+```yaml
+# ~/.opencode/config.yaml
+credentials:
+  anthropic:
+    command: creddy get anthropic --format token
+  openai:
+    command: creddy get openai --format token
+  github:
+    command: creddy get github --format token
+```
+
+## Multiple Model Support
+
+OpenCode supports multiple LLM providers. With Creddy, you can give it access to any combination:
+
+```bash
+# Enroll the agent with multiple scopes
+creddy agent create opencode \
+  --scope "anthropic" \
+  --scope "openai" \
+  --scope "github:repo:myorg/*"
+```
+
+## Usage
+
+Run OpenCode normally — credentials are fetched on demand:
+
+```bash
+# Start an interactive session
+opencode
+
+# Or run a specific task
+opencode "Add tests for the user service"
+```
+
+## Self-Hosted Models
+
+If you're using self-hosted models (Ollama, vLLM, etc.), you may not need Creddy for the LLM. But you can still use it for GitHub and other services:
+
+```bash
+opencode() {
+  # Only inject GitHub credentials, use local model
+  export GITHUB_TOKEN=$(creddy get github --format token)
+  export OPENCODE_MODEL="ollama/codellama"
+  command opencode "$@"
+}
+```
+
+## Security Benefits
+
+- **Credential isolation** — each tool gets its own credentials
+- **Short-lived tokens** — API keys and tokens expire automatically
+- **Audit logging** — track which credentials OpenCode requested
+- **Easy rotation** — rotate backend credentials without updating OpenCode

@@ -1,7 +1,5 @@
-"use client"
-
 import { Navbar } from "@/components/navbar"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { Footer } from "@/components/footer"
 import Link from "next/link"
 
 const tools = [
@@ -37,10 +35,10 @@ export default function ToolsPage() {
       <Navbar />
       <main className="mx-auto max-w-4xl px-6 pt-24 pb-16">
         <div className="mb-12">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground mb-4">
+          <h1 style={{ fontSize: '2.25rem', fontWeight: 700, letterSpacing: '-0.02em', marginBottom: '1rem', lineHeight: 1.2, color: 'var(--foreground)' }}>
             Tool Configuration
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl">
+          <p style={{ fontSize: '1.125rem', lineHeight: 1.75, color: 'var(--muted-foreground)', maxWidth: '42rem' }}>
             Learn how to configure popular AI coding tools to use Creddy for 
             credential management. Each guide shows the specific configuration 
             needed for that tool.
@@ -69,6 +67,7 @@ export default function ToolsPage() {
           ))}
         </div>
       </main>
+      <Footer />
     </div>
   )
 }
