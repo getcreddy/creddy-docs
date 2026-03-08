@@ -275,6 +275,18 @@ export default async function IntegrationPage({
         <td style={{ padding: '0.75rem 1rem' }} {...props} />
       ),
       hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', marginTop: '2rem', marginBottom: '2rem' }} />,
+      img: (props: any) => (
+        <img 
+          {...props}
+          className={props.className || ''}
+          style={{ 
+            width: '100%', 
+            marginBottom: '1.5rem', 
+            borderRadius: '0.5rem',
+            ...props.style 
+          }}
+        />
+      ),
     },
   })
 
@@ -293,6 +305,14 @@ export default async function IntegrationPage({
         .prose-container code[data-theme] {
           padding: 0.625rem 0.875rem !important;
           display: block;
+        }
+        .prose-container img.diagram-invertible {
+          width: 100%;
+          margin-bottom: 1.5rem;
+          border-radius: 0.5rem;
+        }
+        .dark .prose-container img.diagram-invertible {
+          filter: invert(1) hue-rotate(180deg);
         }
       `}</style>
       <Navbar />
