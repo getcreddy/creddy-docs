@@ -87,7 +87,7 @@ function ModeTag({ mode }: { mode: string }) {
 export default function IntegrationsPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Navbar showThemeToggle />
+      <Navbar />
       <main className="pt-28 pb-20 px-6">
         <div className="mx-auto max-w-5xl">
           <div className="mb-12">

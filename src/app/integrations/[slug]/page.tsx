@@ -216,7 +216,7 @@ export default async function IntegrationPage({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Navbar showThemeToggle />
+      <Navbar />
       <main className="pt-24 pb-20 px-6">
         <div className="mx-auto max-w-6xl">
           <div className="mb-8">
