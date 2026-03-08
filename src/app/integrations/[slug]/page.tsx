@@ -306,12 +306,14 @@ export default async function IntegrationPage({
           padding: 0.625rem 0.875rem !important;
           display: block;
         }
-        .prose-container img.diagram-invertible {
-          width: 100%;
+        .diagram-invertible-wrapper {
           margin-bottom: 1.5rem;
+        }
+        .diagram-invertible-wrapper img {
+          width: 100%;
           border-radius: 0.5rem;
         }
-        .dark .prose-container img.diagram-invertible {
+        .dark .diagram-invertible-wrapper img {
           filter: invert(1) hue-rotate(180deg);
         }
       `}</style>
