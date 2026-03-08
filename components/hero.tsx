@@ -53,21 +53,33 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Right: hero image - dark bg only in light mode */}
+        {/* Right: hero image */}
         <div className="relative flex-1 lg:flex lg:justify-end">
-          <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg rounded-2xl overflow-hidden bg-[#0c1220] dark:bg-transparent">
+          {/* Light mode version */}
+          <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg block dark:hidden">
+            <div className="rounded-2xl overflow-hidden bg-[#0c1220]">
+              <div
+                className="pointer-events-none absolute inset-0 z-10"
+                style={{
+                  background: "radial-gradient(ellipse at center, transparent 40%, #0c1220 75%)",
+                }}
+              />
+              <Image
+                src="/images/hero-key.jpg"
+                alt="Geometric key symbolizing secure credential management"
+                width={1024}
+                height={1024}
+                className="h-auto w-full"
+              />
+            </div>
+          </div>
+          
+          {/* Dark mode version */}
+          <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg hidden dark:block">
             <div
-              className="pointer-events-none absolute -inset-4 z-10 dark:hidden"
+              className="pointer-events-none absolute -inset-8 z-10"
               style={{
-                background:
-                  "radial-gradient(ellipse at center, transparent 40%, #0c1220 75%)",
-              }}
-            />
-            <div
-              className="pointer-events-none absolute -inset-8 z-10 hidden dark:block"
-              style={{
-                background:
-                  "radial-gradient(ellipse at center, transparent 35%, var(--background) 70%)",
+                background: "radial-gradient(ellipse at center, transparent 35%, oklch(0.12 0.02 240) 70%)",
               }}
             />
             <Image
