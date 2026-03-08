@@ -1,0 +1,139 @@
+# Agent Management
+
+Agents are the identities that request credentials from Creddy. Each enrolled machine or service gets an agent identity with its own keypair and permissions.
+
+## Enrollment
+
+The standard way to create an agent is through enrollment:
+
+```bash
+creddy init --name my-laptop --server https://creddy.example.com
+```
+
+This generates a keypair, sends an enrollment request to the server, and waits for admin approval (or auto-approval via [policies](/docs/policies)).
+
+---
+
+## Creating Agents (Server-Side)
+
+Admins can pre-create agent identities on the server:
+
+```bash
+creddy agent create ci-runner-01 --can github:myorg/*:read
+```
+
+This creates an agent with pre-defined permissions. The agent still needs to enroll, but the enrollment will be auto-approved since the identity already exists.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--can` | Scopes this agent can request (repeatable) |
+
+### Examples
+
+```bash
+# CI agent with read-only GitHub access
+creddy agent create gha-deploy --can github:myorg/*:read
+
+# Dev machine with multiple backends
+creddy agent create dev-marc \
+  --can github:* \
+  --can anthropic:* \
+  --can doppler:dev/*
+```
+
+---
+
+## Listing Agents
+
+View all registered agents:
+
+```bash
+creddy agent list
+```
+
+Example output:
+
+```
+NAME            STATUS    ROLE       LAST SEEN             SCOPES
+dev-marc        active    admin      2026-03-07 18:30:00   github:*, anthropic:*
+ci-runner-01    active    operator   2026-03-07 18:28:15   github:myorg/*:read
+gha-deploy      pending   operator   -                     github:myorg/*:read
+```
+
+---
+
+## Requesting Additional Permissions
+
+Agents can request additional scopes after enrollment:
+
+```bash
+creddy request --can github:myorg/new-repo
+creddy request --can github:myorg/private-repo:write
+```
+
+The request goes to the admin queue for approval. Once approved, the agent can request credentials for the new scopes.
+
+### Checking Request Status
+
+```bash
+creddy status
+```
+
+Shows pending permission requests along with current agent status.
+
+---
+
+## Revoking Agents
+
+Admins can revoke an agent's access:
+
+```bash
+creddy admin revoke cli_abc123 --reason "Employee offboarding"
+```
+
+Revoked agents cannot request new credentials. Existing credentials remain valid until they expire.
+
+---
+
+## Unenrolling Agents
+
+Remove an agent completely:
+
+```bash
+creddy unenroll cli_abc123
+```
+
+This removes the agent from the server. The agent will need to re-enroll to regain access.
+
+### Auto-Unenroll Inactive Agents
+
+Configure the server to automatically remove inactive agents:
+
+```bash
+sudo creddy install --agent-inactivity-days 30
+```
+
+Agents that haven't requested credentials in 30 days will be automatically unenrolled.
+
+---
+
+## Agent Lifecycle
+
+1. **Enrollment** — Agent generates keypair, sends enrollment request
+2. **Approval** — Admin approves (or policy auto-approves)
+3. **Active** — Agent can request credentials within its allowed scopes
+4. **Permission requests** — Agent can ask for additional scopes
+5. **Revocation** — Admin revokes access (optional)
+6. **Unenrollment** — Agent is removed from server
+
+---
+
+## Best Practices
+
+- **Use descriptive names** — `ci-github-actions` is better than `runner-01`
+- **Scope permissions tightly** — Give agents only what they need
+- **Use policies for automation** — Don't manually approve predictable enrollments
+- **Set agent lifetimes** — Use `max_agent_lifetime` in policies for temporary agents
+- **Monitor with audit logs** — `creddy audit` shows all credential requests

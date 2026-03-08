@@ -1,0 +1,159 @@
+# Plugin Management
+
+Creddy uses plugins to integrate with credential backends like GitHub, AWS, Anthropic, and more. Plugins are distributed as standalone binaries and can be installed from the official registry, OCI registries, or direct URLs.
+
+## Listing Plugins
+
+See what's available and what's installed:
+
+```bash
+# Show all available plugins
+creddy plugin list
+
+# Show only installed plugins
+creddy plugin list --installed
+```
+
+Example output:
+
+```
+NAME        INSTALLED   AVAILABLE   DESCRIPTION
+anthropic   0.1.2       0.1.2       Anthropic API credentials
+aws         -           0.3.0       AWS IAM credentials
+daytona     0.1.0       0.1.1       Daytona workspace credentials
+doppler     0.2.0       0.2.0       Doppler secrets
+github      0.2.1       0.2.1       GitHub App installation tokens
+openai      0.0.1       0.0.1       OpenAI API credentials
+tailscale   0.1.0       0.1.0       Tailscale auth keys
+```
+
+---
+
+## Installing Plugins
+
+Install plugins from the registry by name:
+
+```bash
+# Install latest version
+creddy plugin install github
+
+# Install specific version
+creddy plugin install github@0.2.0
+
+# Install multiple plugins
+creddy plugin install github anthropic doppler
+```
+
+### Alternative Sources
+
+Plugins can also be installed from OCI registries or direct URLs:
+
+```bash
+# From OCI registry
+creddy plugin install ttl.sh/creddy-github:1h
+creddy plugin install plugins.creddy.dev/github:0.1.0
+
+# From URL (tar.gz)
+creddy plugin install https://example.com/creddy-custom.tar.gz
+```
+
+### Installation Locations
+
+- **Running as root:** Plugins install to `/usr/local/lib/creddy/plugins`
+- **Running as user:** Plugins install to `~/.local/share/creddy/plugins`
+
+The server searches both directories, so either location works.
+
+---
+
+## Checking for Updates
+
+See which installed plugins have newer versions available:
+
+```bash
+creddy plugin outdated
+```
+
+Example output:
+
+```
+NAME      INSTALLED   AVAILABLE
+daytona   0.1.0       0.1.1
+```
+
+---
+
+## Upgrading Plugins
+
+Upgrade plugins to their latest versions:
+
+```bash
+# Upgrade specific plugin
+creddy plugin upgrade daytona
+
+# Upgrade all installed plugins
+creddy plugin upgrade --all
+```
+
+After upgrading, restart the server to load the new versions:
+
+```bash
+sudo systemctl restart creddy
+```
+
+---
+
+## Viewing Plugin Details
+
+Get detailed information about a plugin:
+
+```bash
+creddy plugin info github
+```
+
+Example output:
+
+```
+Name:        github
+Version:     0.2.1
+Description: GitHub App installation tokens
+Author:      Creddy
+License:     MIT
+
+Installed:   ~/.local/share/creddy/plugins/github
+Binary:      creddy-github-darwin-arm64
+
+Capabilities:
+  - Credential issuance
+  - Proxy mode
+
+Configuration:
+  - GITHUB_APP_ID (required)
+  - GITHUB_PRIVATE_KEY (required)
+  - GITHUB_INSTALLATION_ID (optional)
+```
+
+---
+
+## Removing Plugins
+
+Remove an installed plugin:
+
+```bash
+creddy plugin remove github
+```
+
+---
+
+## Plugin Architecture
+
+Plugins are standalone binaries that communicate with the Creddy server via a simple protocol. When the server starts, it discovers plugins in the search path and registers their backends.
+
+Each plugin can provide:
+
+- **Credential issuance** — Generate scoped, time-limited credentials
+- **Proxy mode** — Forward requests to the upstream API, injecting credentials
+
+### Building Custom Plugins
+
+See [Building Integrations](/docs/integrations/building) for details on creating your own plugins.

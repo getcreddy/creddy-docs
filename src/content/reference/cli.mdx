@@ -316,3 +316,249 @@ creddy audit [flags]
 | `3` | Connection error |
 | `4` | Authentication error |
 | `5` | Enrollment denied/expired |
+# CLI Reference — Additions
+
+These commands should be added to the existing CLI reference.
+
+---
+
+## Agent Commands
+
+### `creddy agent create`
+
+Create a new agent identity (server-side).
+
+```bash
+creddy agent create <name> [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--can` | Scopes this agent can request (repeatable) |
+
+#### Examples
+
+```bash
+# Create CI agent with read-only access
+creddy agent create ci-runner --can github:myorg/*:read
+
+# Create agent with multiple scopes
+creddy agent create dev-laptop --can github:* --can anthropic:*
+```
+
+---
+
+### `creddy agent list`
+
+List registered agents.
+
+```bash
+creddy agent list
+```
+
+---
+
+### `creddy request`
+
+Request additional permissions for the current agent.
+
+```bash
+creddy request [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--can` | Permission to request (repeatable) |
+
+#### Examples
+
+```bash
+creddy request --can github:myorg/new-repo
+creddy request --can github:myorg/repo:write
+```
+
+---
+
+### `creddy unenroll`
+
+Remove an enrolled agent (admin command).
+
+```bash
+creddy unenroll <client_id>
+```
+
+---
+
+## Plugin Commands
+
+### `creddy plugin list`
+
+List installed and available plugins.
+
+```bash
+creddy plugin list [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--installed` | Show only installed plugins |
+
+---
+
+### `creddy plugin install`
+
+Install plugins from the registry, OCI registry, or URL.
+
+```bash
+creddy plugin install <plugin[@version]> [plugin...] [flags]
+```
+
+#### Examples
+
+```bash
+creddy plugin install github
+creddy plugin install github@0.2.0
+creddy plugin install github anthropic doppler
+creddy plugin install https://example.com/plugin.tar.gz
+creddy plugin install ttl.sh/creddy-github:1h
+```
+
+---
+
+### `creddy plugin upgrade`
+
+Upgrade installed plugins.
+
+```bash
+creddy plugin upgrade [plugin...] [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--all` | Upgrade all installed plugins |
+
+#### Examples
+
+```bash
+creddy plugin upgrade github
+creddy plugin upgrade --all
+```
+
+---
+
+### `creddy plugin outdated`
+
+Show plugins with available updates.
+
+```bash
+creddy plugin outdated
+```
+
+---
+
+### `creddy plugin info`
+
+Show detailed plugin information.
+
+```bash
+creddy plugin info <plugin>
+```
+
+---
+
+### `creddy plugin remove`
+
+Remove an installed plugin.
+
+```bash
+creddy plugin remove <plugin>
+```
+
+---
+
+## Upgrade Commands
+
+### `creddy upgrade`
+
+Upgrade Creddy to the latest version.
+
+```bash
+creddy upgrade
+```
+
+---
+
+### `creddy version`
+
+Print version and check for updates.
+
+```bash
+creddy version [flags]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Machine-readable output |
+
+---
+
+### `creddy which`
+
+Show paths and diagnostics for the Creddy installation.
+
+```bash
+creddy which
+```
+
+Shows binary location, config paths, plugin directories, and systemd service status.
+
+---
+
+## Service Commands
+
+### `creddy install`
+
+Install Creddy as a systemd service.
+
+```bash
+creddy install [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--listen` | `0.0.0.0:8400` | Address to listen on |
+| `--data-dir` | `/var/lib/creddy` | Data directory |
+| `--agent-inactivity-days` | `0` | Auto-unenroll inactive agents (0 = disabled) |
+
+---
+
+### `creddy uninstall`
+
+Remove the Creddy systemd service.
+
+```bash
+creddy uninstall
+```
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CREDDY_SERVER` | Server URL |
+| `CREDDY_CONFIG` | Config file path |
+| `CREDDY_DATA_DIR` | Data directory |
+
+---
+
+## Exit Codes
+
+| Code | Description |
+|------|-------------|
+| `0` | Success |
+| `1` | General error |
+| `2` | Invalid arguments |
+| `3` | Connection error |
+| `4` | Authentication error |
+| `5` | Enrollment denied/expired |

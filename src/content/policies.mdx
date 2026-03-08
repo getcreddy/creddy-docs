@@ -1,0 +1,194 @@
+# Policies
+
+Policies let you automate agent enrollment decisions. Instead of manually approving every agent, you can define rules that auto-approve agents matching certain patterns, with constraints on what they can access.
+
+## Overview
+
+Without policies, every agent enrollment requires manual admin approval. With policies, you can:
+
+- **Auto-approve** agents whose names match a pattern
+- **Restrict scopes** to only what's needed
+- **Set limits** on TTL, agent lifetime, and enrollment rate
+- **Deny specific scopes** even if other rules would allow them
+
+Policies are evaluated in order. The first matching policy wins.
+
+---
+
+## Configuration
+
+Policies are defined in the server config file (`/etc/creddy/config.yaml` or `~/.config/creddy/config.yaml`):
+
+```yaml
+policies:
+  - name: ci-runners
+    match:
+      name_pattern: "ci-*"
+    allow:
+      scopes:
+        - "github:myorg/*:read"
+        - "doppler:ci/*"
+      max_ttl: 1h
+      max_agent_lifetime: 24h
+    limits:
+      max_agents: 50
+      rate: "10/hour"
+
+  - name: dev-machines
+    match:
+      name_pattern: "dev-*"
+    allow:
+      scopes:
+        - "github:*"
+        - "anthropic:*"
+      max_ttl: 8h
+    deny:
+      scopes:
+        - "github:*:admin"
+
+  - name: default
+    match:
+      name_pattern: "*"
+    # No allow block = requires manual approval
+```
+
+---
+
+## Policy Structure
+
+### Match Rules
+
+Determine which agents this policy applies to:
+
+```yaml
+match:
+  name_pattern: "ci-*"  # Glob pattern against agent name
+```
+
+Patterns support `*` (any characters) and `?` (single character):
+- `ci-*` matches `ci-runner-01`, `ci-deploy`, etc.
+- `dev-?` matches `dev-1`, `dev-a`, but not `dev-10`
+- `*` matches everything (catch-all)
+
+### Allow Rules
+
+Define what auto-approved agents can access:
+
+```yaml
+allow:
+  scopes:
+    - "github:myorg/*"        # Any repo in myorg
+    - "github:myorg/public:read"  # Read-only on specific repo
+    - "doppler:*"             # All Doppler projects
+  max_ttl: 1h                 # Maximum credential TTL
+  max_agent_lifetime: 7d      # Agent expires after this
+```
+
+**Scope patterns:**
+- `github:*` — All GitHub scopes
+- `github:org/*` — All repos in org
+- `github:org/repo:read` — Specific repo, read-only
+- `anthropic:*` — All Anthropic scopes
+
+If `allow` is omitted, the policy requires manual approval (useful for logging/auditing matches without auto-approving).
+
+### Deny Rules
+
+Explicitly block certain scopes, even if allow rules would permit them:
+
+```yaml
+deny:
+  scopes:
+    - "github:*:admin"    # Never allow admin access
+    - "aws:iam:*"         # Block IAM operations
+```
+
+Deny rules are checked before allow rules.
+
+### Limits
+
+Constrain auto-approval volume:
+
+```yaml
+limits:
+  max_agents: 100       # Max agents under this policy
+  rate: "10/hour"       # Enrollment rate limit
+```
+
+Rate formats: `N/second`, `N/minute`, `N/hour`, `N/day`
+
+---
+
+## Evaluation Order
+
+1. Policies are checked in order (first match wins)
+2. If name pattern matches:
+   - Check deny rules first — if any scope is denied, reject
+   - Check allow rules — all requested scopes must be allowed
+   - Check limits — rate and count must be within bounds
+3. If no policy matches, enrollment requires manual approval
+
+---
+
+## Examples
+
+### CI/CD Pipeline Agents
+
+Auto-approve CI runners with minimal permissions:
+
+```yaml
+- name: github-actions
+  match:
+    name_pattern: "gha-*"
+  allow:
+    scopes:
+      - "github:myorg/*:read"
+      - "github:myorg/*:write"
+    max_ttl: 30m
+    max_agent_lifetime: 2h
+  limits:
+    rate: "100/hour"
+```
+
+### Development Machines
+
+Trust dev machines but block dangerous operations:
+
+```yaml
+- name: developer-laptops
+  match:
+    name_pattern: "dev-*"
+  allow:
+    scopes:
+      - "github:*"
+      - "anthropic:*"
+      - "doppler:dev/*"
+    max_ttl: 8h
+  deny:
+    scopes:
+      - "github:*:admin"
+      - "doppler:prod/*"
+```
+
+### Audit-Only (No Auto-Approve)
+
+Log which agents would match, but require manual approval:
+
+```yaml
+- name: audit-unknown
+  match:
+    name_pattern: "*"
+  # No allow block = manual approval required
+```
+
+---
+
+## Reloading Policies
+
+After editing the config file, restart the server to apply changes:
+
+```bash
+sudo systemctl restart creddy
+```
+
+Existing agents are not affected by policy changes — policies only apply at enrollment time.

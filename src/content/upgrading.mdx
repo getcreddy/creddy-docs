@@ -1,0 +1,114 @@
+# Upgrading
+
+Keep Creddy and its plugins up to date.
+
+## Checking Your Version
+
+```bash
+creddy version
+```
+
+Example output:
+
+```
+creddy v0.3.2 (darwin/arm64)
+Latest: v0.3.2 ✓
+
+Plugins:
+  github      0.2.1 (latest)
+  anthropic   0.1.2 (latest)
+  doppler     0.2.0 → 0.2.1 available
+```
+
+For machine-readable output:
+
+```bash
+creddy version --json
+```
+
+---
+
+## Upgrading Creddy
+
+Upgrade to the latest version:
+
+```bash
+creddy upgrade
+```
+
+This downloads and replaces the current binary. If running as a systemd service, restart afterward:
+
+```bash
+sudo systemctl restart creddy
+```
+
+### Manual Upgrade
+
+You can also reinstall from the install script:
+
+```bash
+curl -fsSL https://get.creddy.dev/install.sh | sudo sh -s -- --to /usr/local/bin
+sudo systemctl restart creddy
+```
+
+---
+
+## Upgrading Plugins
+
+Check for plugin updates:
+
+```bash
+creddy plugin outdated
+```
+
+Upgrade specific plugins:
+
+```bash
+creddy plugin upgrade github
+```
+
+Or upgrade all plugins at once:
+
+```bash
+creddy plugin upgrade --all
+```
+
+Restart the server to load updated plugins:
+
+```bash
+sudo systemctl restart creddy
+```
+
+---
+
+## Diagnostics
+
+If something isn't working after an upgrade, check your installation:
+
+```bash
+creddy which
+```
+
+This shows:
+- Binary location and checksum
+- Config file locations
+- Plugin directories
+- Systemd service status
+
+---
+
+## Rollback
+
+Creddy doesn't have built-in rollback, but you can:
+
+1. Download a specific version from GitHub releases
+2. Replace the binary manually
+3. Restart the service
+
+```bash
+# Example: rollback to v0.3.1
+curl -L https://github.com/getcreddy/creddy/releases/download/v0.3.1/creddy-linux-amd64 \
+  -o /usr/local/bin/creddy
+chmod +x /usr/local/bin/creddy
+sudo systemctl restart creddy
+```
