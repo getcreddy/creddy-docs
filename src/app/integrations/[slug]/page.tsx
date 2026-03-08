@@ -238,7 +238,20 @@ export default async function IntegrationPage({
             </article>
             
             {/* Table of Contents */}
-            <TableOfContents headings={headings} />
+            <aside className="w-56 shrink-0 border-l border-border pl-4">
+              <div className="sticky top-24">
+                <p className="text-sm font-medium mb-4">On this page</p>
+                <ul className="space-y-2 text-sm">
+                  {headings.map((h) => (
+                    <li key={h.id}>
+                      <a href={`#${h.id}`} className="text-muted-foreground hover:text-foreground">
+                        {h.text}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </aside>
           </div>
         </div>
       </main>
