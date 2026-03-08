@@ -68,6 +68,7 @@ export default async function IntegrationPage({
 
   // Extract headings for TOC
   const headings = extractHeadings(source)
+  console.log('TOC headings:', headings.length, headings.slice(0, 3))
 
   const { content } = await compileMDX({
     source,

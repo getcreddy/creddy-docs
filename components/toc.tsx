@@ -36,7 +36,13 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
   }, [headings])
 
   if (headings.length === 0) {
-    return null
+    return (
+      <nav className="hidden lg:block w-56 shrink-0">
+        <div className="sticky top-24">
+          <p className="text-xs text-muted-foreground">No headings found</p>
+        </div>
+      </nav>
+    )
   }
 
   return (
