@@ -6,19 +6,9 @@ Creddy's Tailscale plugin creates ephemeral auth keys for joining your tailnet. 
 
 ## How It Works
 
-```
-┌─────────────┐    creddy get tailscale    ┌─────────────┐
-│   Agent     │ ─────────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────────── │   Server    │
-└─────────────┘   tskey-auth-xxx (10 min)  └──────┬──────┘
-       │                                          │
-       │ tailscale up --auth-key=xxx              │ Tailscale API
-       ▼                                          ▼
-┌─────────────┐                            ┌─────────────┐
-│  Tailscale  │ ◀─────────────────────────│  Tailscale  │
-│   Daemon    │    Device joins tailnet    │   Admin     │
-└─────────────┘                            └─────────────┘
-```
+<div className="diagram-invertible-wrapper">
+  <img src="/diagrams/tailscale-flow.svg" alt="Tailscale vend flow diagram" />
+</div>
 
 1. Agent requests `creddy get tailscale`
 2. Creddy creates a single-use auth key via Tailscale API
