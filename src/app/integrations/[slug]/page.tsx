@@ -173,9 +173,9 @@ export default async function IntegrationPage({
         
         if (isDiagram) {
           return (
-            <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)', backgroundColor: 'var(--muted)', overflowX: 'auto' }}>
+            <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)', backgroundColor: '#1a1a1a', overflowX: 'auto' }}>
               <pre 
-                style={{ padding: '1rem', fontSize: '0.8rem', fontFamily: 'ui-monospace, monospace', lineHeight: 1.4, whiteSpace: 'pre', overflowX: 'auto' }}
+                style={{ padding: '1rem', fontSize: '0.8rem', fontFamily: 'ui-monospace, monospace', lineHeight: 1.4, whiteSpace: 'pre', overflowX: 'auto', color: '#d4d4d4' }}
                 {...props} 
               />
             </div>
@@ -186,6 +186,7 @@ export default async function IntegrationPage({
           <pre 
             style={{ 
               backgroundColor: '#0a0a0a', 
+              color: '#e5e5e5',
               border: '1px solid var(--border)', 
               borderRadius: '0.5rem', 
               padding: '1rem', 
