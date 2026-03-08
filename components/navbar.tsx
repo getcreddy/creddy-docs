@@ -51,7 +51,7 @@ export function Navbar() {
               
               {toolsOpen && (
                 <div className="absolute top-full left-0 pt-2">
-                  <div className="rounded-lg border border-border/50 bg-background/95 backdrop-blur-md shadow-lg py-2 min-w-[180px]">
+                  <div className="rounded-lg border border-border/50 bg-background/95 backdrop-blur-md shadow-lg py-2 min-w-[200px]">
                     {tools.map((tool) => (
                       <a
                         key={tool.slug}

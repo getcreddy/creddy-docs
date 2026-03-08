@@ -50,7 +50,7 @@ export function DocsNavbar() {
               
               {toolsOpen && (
                 <div className="absolute top-full left-0 pt-2">
-                  <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-md shadow-lg py-2 min-w-[180px]">
+                  <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur-md shadow-lg py-2 min-w-[200px]">
                     {tools.map((tool) => (
                       <a
                         key={tool.slug}
