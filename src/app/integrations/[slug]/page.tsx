@@ -238,19 +238,11 @@ export default async function IntegrationPage({
             </article>
             
             {/* Table of Contents */}
-            <aside className="w-56 shrink-0 border-l border-border pl-4">
-              <div className="sticky top-24">
-                <p className="text-sm font-medium mb-4">On this page</p>
-                <ul className="space-y-2 text-sm">
-                  {headings.map((h) => (
-                    <li key={h.id}>
-                      <a href={`#${h.id}`} className="text-muted-foreground hover:text-foreground">
-                        {h.text}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            <aside className="w-64 shrink-0 bg-red-500 p-4">
+              <p className="text-white font-bold">TOC DEBUG - {headings.length} headings</p>
+              {headings.slice(0, 5).map((h) => (
+                <p key={h.id} className="text-white text-sm">{h.text}</p>
+              ))}
             </aside>
           </div>
         </div>
