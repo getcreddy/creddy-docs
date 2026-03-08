@@ -21,14 +21,17 @@ creddy agent create agent-12345 \\
     step: "02",
     title: "Vend mode: get real tokens",
     description:
-      "For services like GitHub, Creddy issues real short-lived tokens. The agent uses them directly with the service.",
-    code: `# Get GitHub token (10 min TTL)
-GITHUB_TOKEN=$(curl "$CREDDY_URL/v1/credentials/github" \\
-  -H "Authorization: Bearer $ACCESS_TOKEN" | jq -r .token)
+      "For services like GitHub, Creddy issues real short-lived tokens. Authenticate with your client credentials, then request a token.",
+    code: `# Authenticate (OAuth 2.0 client credentials)
+ACCESS_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \\
+  -d "grant_type=client_credentials" \\
+  -d "client_id=agent_f8e7d6" \\
+  -d "client_secret=cks_xyz789" | jq -r .access_token)
 
-# Use it directly with GitHub
-gh api repos/myorg/repo \\
-  -H "Authorization: token $GITHUB_TOKEN"`,
+# Get GitHub token (10 min TTL)
+curl "$CREDDY_URL/v1/credentials/github" \\
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+# → { "token": "ghs_xxxxx" }`,
   },
   {
     step: "03",
