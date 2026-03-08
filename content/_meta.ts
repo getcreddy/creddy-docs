@@ -1,5 +1,3 @@
-// Updated _meta.ts for src/content/
-
 export default {
   index: 'Introduction',
   'getting-started': 'Getting Started',
@@ -19,4 +17,5 @@ export default {
   },
   pricing: 'Pricing',
   contributing: 'Contributing',
+  integrations: 'Integrations',
 }
