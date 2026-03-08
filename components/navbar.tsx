@@ -8,7 +8,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <header className="fixed top-0 z-50 w-full border-b border-white/10 bg-background/80 backdrop-blur-md">
+    <header className="fixed top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-md">
       <nav className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
         <div className="flex items-center gap-6">
           <a
@@ -69,7 +69,7 @@ export function Navbar() {
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="border-t border-white/10 bg-background/95 backdrop-blur-md sm:hidden">
+        <div className="border-t border-border/50 bg-background/95 backdrop-blur-md sm:hidden">
           <div className="mx-auto max-w-5xl px-6 py-4 flex flex-col gap-4">
             <a
               href="/integrations"
