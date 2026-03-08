@@ -8,7 +8,8 @@ const steps = [
       "Register each agent with scoped permissions. Creddy returns OIDC credentials — a client ID and secret unique to this agent.",
     code: `# Create an agent identity
 creddy agent create agent-12345 \\
-  --can github:myorg/*
+  --can github:myorg/* \\
+  --can anthropic
 
 # Returns OIDC credentials
 {
@@ -18,27 +19,31 @@ creddy agent create agent-12345 \\
   },
   {
     step: "02",
-    title: "Agent authenticates via OIDC",
+    title: "Vend mode: get real tokens",
     description:
-      "The agent exchanges its credentials for a signed JWT. Standard OAuth 2.0 client credentials flow.",
-    code: `# Get access token (OAuth 2.0)
-curl -X POST https://creddy.example.com/oauth/token \\
-  -d "grant_type=client_credentials" \\
-  -d "client_id=$CLIENT_ID" \\
-  -d "client_secret=$CLIENT_SECRET"
+      "For services like GitHub, Creddy issues real short-lived tokens. The agent uses them directly with the service.",
+    code: `# Get GitHub token (10 min TTL)
+GITHUB_TOKEN=$(curl "$CREDDY_URL/v1/credentials/github" \\
+  -H "Authorization: Bearer $ACCESS_TOKEN" | jq -r .token)
 
-# → { "access_token": "eyJhbG...", ... }`,
+# Use it directly with GitHub
+gh api repos/myorg/repo \\
+  -H "Authorization: token $GITHUB_TOKEN"`,
   },
   {
     step: "03",
-    title: "Exchange for service credentials",
+    title: "Proxy mode: your keys stay hidden",
     description:
-      "Use the access token to request short-lived credentials. Token expires automatically — no cleanup needed.",
-    code: `# Get GitHub token (10 min TTL)
-curl "https://creddy.example.com/v1/credentials/github?ttl=10m" \\
-  -H "Authorization: Bearer $ACCESS_TOKEN"
+      "For APIs without ephemeral keys (like Anthropic), agents call through Creddy's proxy. Your real API key never leaves the server.",
+    code: `# Claude Code with Creddy proxy
+claude config set apiUrl \\
+  "https://creddy.example.com/v1/proxy/anthropic"
 
-# → { "token": "ghs_xxxxx", "expires_at": "..." }`,
+claude config set apiKey \\
+  "crd_xxx"  # Creddy token, not your real key
+
+# Requests flow through Creddy → Anthropic
+# Your sk-ant-xxx stays on the server`,
   },
 ]
 
