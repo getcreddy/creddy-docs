@@ -5,30 +5,40 @@ const steps = [
     step: "01",
     title: "Create an agent identity",
     description:
-      "Register each agent with its own scoped permissions. Creddy generates a unique API key and optional GPG signing key.",
+      "Register each agent with scoped permissions. Creddy acts as an OIDC provider — agents get verifiable identities, not shared secrets.",
     code: `# Create an agent identity
-creddy agent create deploy-bot --can github
-# → ckr_abc123...`,
+creddy agent create deploy-bot \\
+  --can github:myorg/*`,
   },
   {
     step: "02",
-    title: "Agent requests credentials",
+    title: "Agent authenticates via OIDC",
     description:
-      "When the agent needs access, it authenticates with its key and requests an ephemeral token scoped to the service it needs.",
-    code: `# Agent requests ephemeral token
-export CREDDY_TOKEN=ckr_abc123
-creddy get github --ttl 10m
-# → ghs_xxxxx (expires in 10 minutes)`,
+      "The agent authenticates and receives a signed JWT. Services can verify the token directly or exchange it for credentials.",
+    code: `# Get OIDC token
+TOKEN=$(creddy get token)
+
+# Token contains identity claims
+{
+  "sub": "agent:deploy-bot",
+  "iss": "https://creddy.example.com",
+  "scope": "github:myorg/*",
+  "exp": 1709856000
+}`,
   },
   {
     step: "03",
-    title: "Token expires automatically",
+    title: "Exchange for service credentials",
     description:
-      "Tokens are short-lived by default. Every request is logged. The agent never sees your master credentials.",
-    code: `# Full audit trail
-creddy audit list --agent deploy-bot
-# → 2024-01-15 14:23  github  ghs_xxxxx  expired
-# → 2024-01-15 14:33  github  ghs_yyyyy  expired`,
+      "For services that support OIDC (AWS, GCP), federate directly. For others, Creddy exchanges identity for short-lived credentials.",
+    code: `# Federate directly with AWS
+aws sts assume-role-with-web-identity \\
+  --role-arn arn:aws:iam::123:role/agent \\
+  --web-identity-token "$TOKEN"
+
+# Or get service credentials
+creddy get github --ttl 10m
+# → ghs_xxxxx (expires in 10 minutes)`,
   },
 ]
 
@@ -39,7 +49,7 @@ export function HowItWorks() {
         <div className="mb-16 max-w-2xl">
           <p className="mb-3 font-mono text-sm text-primary">How it works</p>
           <h2 className="text-balance text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Three steps to secure agent credentials
+            Identity first, credentials second
           </h2>
         </div>
 
