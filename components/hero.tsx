@@ -1,7 +1,6 @@
 import Image from "next/image"
 import { Github } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 
 export function Hero() {
   return (
@@ -19,12 +18,6 @@ export function Hero() {
       <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center gap-12 lg:flex-row lg:items-center lg:gap-16">
         {/* Left: text content */}
         <div className="flex flex-1 flex-col items-start text-left">
-          <Badge
-            variant="outline"
-            className="mb-6 border-border text-muted-foreground font-mono text-xs tracking-wide"
-          >
-            Open Source &middot; Apache 2.0 Licensed
-          </Badge>
 
           <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
             OIDC identity for AI&nbsp;agents
