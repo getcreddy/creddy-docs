@@ -31,17 +31,12 @@ export function CodeBlock({ code, lang = "bash" }: CodeBlockProps) {
   }
 
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-border bg-[#0d1117]">
-      <div className="flex items-center justify-between border-b border-border/50 px-4 py-2 bg-[#161b22]">
-        <div className="flex items-center gap-2">
-          <div className="size-2.5 rounded-full bg-[#ff5f56]" />
-          <div className="size-2.5 rounded-full bg-[#ffbd2e]" />
-          <div className="size-2.5 rounded-full bg-[#27ca40]" />
-          <span className="ml-2 text-xs text-muted-foreground font-mono">{lang}</span>
-        </div>
+    <div className="group relative overflow-hidden rounded-lg border border-white/10 bg-black">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
+        <span className="text-xs text-white/50 font-mono">{lang}</span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className="flex items-center gap-1 text-xs text-white/50 transition-colors hover:text-white"
           aria-label="Copy code to clipboard"
         >
           {copied ? (
@@ -58,7 +53,7 @@ export function CodeBlock({ code, lang = "bash" }: CodeBlockProps) {
         </button>
       </div>
       <div 
-        className="overflow-x-auto p-4 text-sm leading-relaxed [&_pre]:!bg-transparent [&_code]:!bg-transparent"
+        className="overflow-x-auto p-4 text-sm leading-relaxed [&_pre]:!bg-black [&_pre]:!m-0 [&_code]:!bg-black"
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>

@@ -3,37 +3,36 @@
 import { CodeBlock } from "@/components/code-block"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
-const bashCode = `# Authenticate (OAuth 2.0 client credentials)
+const bashCode = `# Authenticate (OAuth 2.0)
 ACCESS_TOKEN=$(curl -s -X POST $CREDDY_URL/oauth/token \\
   -d "grant_type=client_credentials" \\
   -d "client_id=agent_f8e7d6" \\
   -d "client_secret=cks_xyz789" | jq -r .access_token)
 
-# Get GitHub token (10 min TTL)
+# Get GitHub token
 curl "$CREDDY_URL/v1/credentials/github" \\
   -H "Authorization: Bearer $ACCESS_TOKEN"
 # → { "token": "ghs_xxxxx" }`
 
 const nodeCode = `import { Issuer } from 'openid-client';
 
-// Discover OIDC configuration
-const issuer = await Issuer.discover(process.env.CREDDY_URL);
+const issuer = await Issuer.discover(CREDDY_URL);
 const client = new issuer.Client({
   client_id: 'agent_f8e7d6',
   client_secret: 'cks_xyz789',
 });
 
 // Get access token
-const tokenSet = await client.grant({
+const { access_token } = await client.grant({
   grant_type: 'client_credentials',
 });
 
-// Get GitHub token
-const res = await fetch(\`\${process.env.CREDDY_URL}/v1/credentials/github\`, {
-  headers: { Authorization: \`Bearer \${tokenSet.access_token}\` },
-});
-const { token } = await res.json();
-// → ghs_xxxxx`
+// Get GitHub token  
+const res = await fetch(
+  \`\${CREDDY_URL}/v1/credentials/github\`,
+  { headers: { Authorization: \`Bearer \${access_token}\` } }
+);
+const { token } = await res.json();`
 
 const steps = [
   {
@@ -57,14 +56,13 @@ creddy agent create agent-12345 \\
     title: "Proxy mode: your keys stay hidden",
     description:
       "For APIs without ephemeral keys (like Anthropic), agents call through Creddy's proxy. Your real API key never leaves the server.",
-    code: `# Claude Code with Creddy proxy
+    code: `# Configure Claude Code to use Creddy
 claude config set apiUrl \\
   "https://creddy.example.com/v1/proxy/anthropic"
 
-claude config set apiKey \\
-  "crd_xxx"  # Creddy token, not your real key
+claude config set apiKey "crd_xxx"
 
-# Requests flow through Creddy → Anthropic
+# Requests go through Creddy
 # Your sk-ant-xxx stays on the server`,
   },
 ]
