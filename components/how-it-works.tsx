@@ -116,7 +116,7 @@ export function HowItWorks() {
                 <CodeBlock code={bashCode} />
               </TabsContent>
               <TabsContent value="node">
-                <CodeBlock code={nodeCode} />
+                <CodeBlock code={nodeCode} lang="typescript" />
               </TabsContent>
             </Tabs>
           </div>
