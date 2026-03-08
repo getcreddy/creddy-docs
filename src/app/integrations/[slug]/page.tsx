@@ -33,7 +33,7 @@ export default async function IntegrationPage({
     notFound()
   }
 
-  const filePath = path.join(process.cwd(), "src/content/integrations", `${slug}.mdx`)
+  const filePath = path.join(process.cwd(), "content/integrations", `${slug}.mdx`)
   
   let source: string
   try {
