@@ -61,7 +61,7 @@ export function Hero() {
               <div
                 className="pointer-events-none absolute inset-0 z-10"
                 style={{
-                  background: "radial-gradient(ellipse at center, transparent 40%, #0c1220 75%)",
+                  background: "radial-gradient(ellipse at center, transparent 30%, #0c1220 60%)",
                 }}
               />
               <Image
@@ -74,12 +74,12 @@ export function Hero() {
             </div>
           </div>
           
-          {/* Dark mode version */}
+          {/* Dark mode version - aggressive fade */}
           <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg hidden dark:block">
             <div
-              className="pointer-events-none absolute -inset-8 z-10"
+              className="pointer-events-none absolute -inset-12 z-10"
               style={{
-                background: "radial-gradient(ellipse at center, transparent 35%, oklch(0.12 0.02 240) 70%)",
+                background: "radial-gradient(ellipse at center, transparent 20%, oklch(0.12 0.02 240) 55%)",
               }}
             />
             <Image
