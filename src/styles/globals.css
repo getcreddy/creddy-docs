@@ -89,12 +89,22 @@
 .prose-container pre {
   /* Prevent code from breaking layout */
   max-width: 100%;
+  padding: 1.25rem 1.5rem !important;
 }
 
 .prose-container pre code {
   /* Ensure code text is visible */
   color: #e4e4e7;
   display: block;
+}
+
+.prose-container figure[data-rehype-pretty-code-figure] pre {
+  padding: 1.25rem 1.5rem !important;
+}
+
+.prose-container [data-line] {
+  padding-left: 0.25rem !important;
+  padding-right: 0.25rem !important;
 }
 
 /* ASCII diagram specific styling */
@@ -132,11 +142,21 @@
   background-color: #0d1117 !important;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
-  padding: 1.25rem;
+  padding: 1.25rem 1.5rem !important;
   overflow-x: auto;
   font-size: 0.875rem;
   line-height: 1.7;
   max-width: 100%;
+}
+
+[data-rehype-pretty-code-figure] pre > code {
+  padding: 0 !important;
+}
+
+[data-rehype-pretty-code-figure] [data-line] {
+  padding: 0 0.5rem !important;
+  display: inline-block;
+  width: 100%;
 }
 
 [data-rehype-pretty-code-figure] code {
