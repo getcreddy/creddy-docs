@@ -44,16 +44,16 @@ export function Navbar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Button asChild variant="ghost" size="sm" className="size-9 p-0">
+          <Button asChild variant="ghost" size="sm" className="gap-2">
             <a
               href="https://github.com/getcreddy/creddy"
               target="_blank"
               rel="noopener noreferrer"
             >
               <Github className="size-4" />
-              <span className="sr-only">GitHub</span>
+              <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
           
@@ -61,10 +61,10 @@ export function Navbar() {
           <Button
             variant="ghost"
             size="sm"
-            className="size-9 p-0 sm:hidden"
+            className="sm:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            {mobileMenuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+            {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </Button>
         </div>
       </nav>

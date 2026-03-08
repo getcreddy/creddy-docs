@@ -15,7 +15,7 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <Button variant="ghost" size="sm" className="size-9 p-0">
+      <Button variant="ghost" size="icon" className="size-9">
         <span className="size-4" />
       </Button>
     )
@@ -24,16 +24,16 @@ export function ThemeToggle() {
   return (
     <Button
       variant="ghost"
-      size="sm"
-      className="size-9 p-0"
+      size="icon"
+      className="size-9"
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      aria-label="Toggle theme"
     >
       {theme === "dark" ? (
         <Sun className="size-4" />
       ) : (
         <Moon className="size-4" />
       )}
-      <span className="sr-only">Toggle theme</span>
     </Button>
   )
 }
