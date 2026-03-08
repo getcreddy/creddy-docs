@@ -1,12 +1,20 @@
 "use client"
 
 import { useState } from "react"
-import { Github, ArrowUpRight, Menu, X } from "lucide-react"
+import { Github, ArrowUpRight, Menu, X, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 
+const tools = [
+  { name: "OpenClaw", slug: "openclaw", icon: "🦞" },
+  { name: "Claude Code", slug: "claude-code", icon: "🤖" },
+  { name: "Codex CLI", slug: "codex", icon: "⌨️" },
+  { name: "OpenCode", slug: "opencode", icon: "💻" },
+]
+
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
 
   return (
     <header className="fixed top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-md">
@@ -26,6 +34,39 @@ export function Navbar() {
             >
               Integrations
             </a>
+            
+            {/* Tools dropdown */}
+            <div 
+              className="relative"
+              onMouseEnter={() => setToolsOpen(true)}
+              onMouseLeave={() => setToolsOpen(false)}
+            >
+              <a
+                href="/tools"
+                className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Tools
+                <ChevronDown className="size-3" />
+              </a>
+              
+              {toolsOpen && (
+                <div className="absolute top-full left-0 pt-2">
+                  <div className="rounded-lg border border-border/50 bg-background/95 backdrop-blur-md shadow-lg py-2 min-w-[180px]">
+                    {tools.map((tool) => (
+                      <a
+                        key={tool.slug}
+                        href={`/tools/${tool.slug}`}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+                      >
+                        <span>{tool.icon}</span>
+                        {tool.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
             <a
               href="/docs"
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -81,6 +122,26 @@ export function Navbar() {
             >
               Integrations
             </a>
+            <a
+              href="/tools"
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Tools
+            </a>
+            <div className="pl-4 flex flex-col gap-2">
+              {tools.map((tool) => (
+                <a
+                  key={tool.slug}
+                  href={`/tools/${tool.slug}`}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span>{tool.icon}</span>
+                  {tool.name}
+                </a>
+              ))}
+            </div>
             <a
               href="/docs"
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
