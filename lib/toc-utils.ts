@@ -9,13 +9,13 @@ export interface TocItem {
 
 // Utility function to extract headings from MDX source
 export function extractHeadings(source: string): TocItem[] {
-  const headingRegex = /^#{2,3}\s+(.+)$/gm
+  const headingRegex = /^(#{1,3})\s+(.+)$/gm
   const headings: TocItem[] = []
   let match
 
   while ((match = headingRegex.exec(source)) !== null) {
-    const level = match[0].startsWith('###') ? 3 : 2
-    const text = match[1].trim()
+    const level = match[1].length // 1, 2, or 3
+    const text = match[2].trim()
     // Create a slug from the heading text
     const id = text
       .toLowerCase()

@@ -40,21 +40,22 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
   }
 
   return (
-    <nav className="hidden xl:block w-56 shrink-0">
+    <nav className="hidden lg:block w-56 shrink-0">
       <div className="sticky top-24">
-        <p className="text-sm font-semibold text-foreground mb-3">On this page</p>
-        <ul className="space-y-2 text-sm">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">On this page</p>
+        <ul className="space-y-1 text-sm border-l border-border">
           {headings.map((heading) => (
             <li
               key={heading.id}
-              style={{ paddingLeft: heading.level === 3 ? '0.75rem' : 0 }}
+              style={{ paddingLeft: heading.level === 1 ? '0.75rem' : heading.level === 2 ? '1rem' : '1.5rem' }}
+              className="-ml-px"
             >
               <a
                 href={`#${heading.id}`}
-                className={`block py-1 transition-colors ${
+                className={`block py-1 transition-colors border-l-2 -ml-px pl-3 ${
                   activeId === heading.id
-                    ? 'text-primary font-medium'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'text-foreground border-primary font-medium'
+                    : 'text-muted-foreground hover:text-foreground border-transparent hover:border-border'
                 }`}
                 onClick={(e) => {
                   e.preventDefault()
