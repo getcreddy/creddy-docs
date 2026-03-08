@@ -24,10 +24,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0b1628' },
-  ],
+  themeColor: '#0b1628',
 }
 
 export default function RootLayout({
@@ -48,8 +45,8 @@ export default function RootLayout({
       <body className={`font-sans antialiased ${geist.variable} ${geistMono.variable} ${jetbrainsMono.variable}`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="dark"
+          forcedTheme="dark"
           disableTransitionOnChange
         >
           {children}

@@ -55,31 +55,12 @@ export function Hero() {
 
         {/* Right: hero image */}
         <div className="relative flex-1 lg:flex lg:justify-end">
-          {/* Light mode version */}
-          <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg block dark:hidden">
-            <div className="rounded-2xl overflow-hidden bg-[#0c1220]">
-              <div
-                className="pointer-events-none absolute inset-0 z-10"
-                style={{
-                  background: "radial-gradient(ellipse at center, transparent 30%, #0c1220 60%)",
-                }}
-              />
-              <Image
-                src="/images/hero-key.jpg"
-                alt="Geometric key symbolizing secure credential management"
-                width={1024}
-                height={1024}
-                className="h-auto w-full"
-              />
-            </div>
-          </div>
-          
-          {/* Dark mode version - aggressive fade */}
-          <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg hidden dark:block">
+          <div className="relative mx-auto w-full max-w-sm lg:max-w-md xl:max-w-lg">
             <div
-              className="pointer-events-none absolute -inset-12 z-10"
+              className="pointer-events-none absolute -inset-8 z-10"
               style={{
-                background: "radial-gradient(ellipse at center, transparent 20%, oklch(0.12 0.02 240) 55%)",
+                background:
+                  "radial-gradient(ellipse at center, transparent 35%, var(--background) 70%)",
               }}
             />
             <Image
