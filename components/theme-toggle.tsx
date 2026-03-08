@@ -14,11 +14,8 @@ export function ThemeToggle() {
   }, [])
 
   if (!mounted) {
-    return (
-      <Button variant="ghost" size="icon" className="size-9">
-        <span className="sr-only">Toggle theme</span>
-      </Button>
-    )
+    // Return invisible placeholder to prevent layout shift
+    return <div className="size-9" />
   }
 
   return (
