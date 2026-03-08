@@ -7,6 +7,7 @@ import { Footer } from "@/components/footer"
 import { TableOfContents } from "@/components/toc"
 import { extractHeadings } from "@/lib/toc-utils"
 import remarkGfm from "remark-gfm"
+import rehypePrettyCode from "rehype-pretty-code"
 import React from "react"
 
 const integrations: Record<string, { name: string; mode: string }> = {
@@ -75,6 +76,12 @@ export default async function IntegrationPage({
       parseFrontmatter: true,
       mdxOptions: {
         remarkPlugins: [remarkGfm],
+        rehypePlugins: [
+          [rehypePrettyCode, {
+            theme: 'github-dark',
+            keepBackground: true,
+          }]
+        ],
       },
     },
     components: {
@@ -142,51 +149,31 @@ export default async function IntegrationPage({
         />
       ),
       em: (props) => <em {...props} />,
-      code: (props) => {
-        const content = String(props.children || '')
-        const isBlock = content.includes('\n')
-        
-        if (isBlock) {
-          return <code style={{ display: 'block', fontSize: '0.875rem' }} {...props} />
-        }
-        return (
-          <code 
-            style={{ 
-              backgroundColor: 'var(--secondary)', 
-              padding: '0.125rem 0.375rem', 
-              borderRadius: '0.25rem', 
-              fontSize: '0.875rem', 
-              fontFamily: 'var(--font-mono), ui-monospace, monospace',
-              border: '1px solid var(--border)'
-            }}
-            {...props} 
-          />
-        )
-      },
-      pre: (props) => {
-        // Check if this is an ASCII diagram based on content
-        const content = React.isValidElement(props.children) 
-          ? String((props.children as any)?.props?.children || '')
-          : String(props.children || '')
-        
-        const isDiagram = isAsciiDiagram(content)
-        
-        if (isDiagram) {
+      code: (props: any) => {
+        // Inline code (not inside pre)
+        if (!props['data-language']) {
           return (
-            <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)', backgroundColor: '#1a1a1a', overflowX: 'auto' }}>
-              <pre 
-                style={{ padding: '1rem', fontSize: '0.8rem', fontFamily: 'ui-monospace, monospace', lineHeight: 1.4, whiteSpace: 'pre', overflowX: 'auto', color: '#d4d4d4' }}
-                {...props} 
-              />
-            </div>
+            <code 
+              style={{ 
+                backgroundColor: 'var(--secondary)', 
+                padding: '0.125rem 0.375rem', 
+                borderRadius: '0.25rem', 
+                fontSize: '0.875rem', 
+                fontFamily: 'ui-monospace, monospace',
+                border: '1px solid var(--border)'
+              }}
+              {...props} 
+            />
           )
         }
-        
+        // Code inside pre (handled by rehype-pretty-code)
+        return <code {...props} />
+      },
+      pre: (props: any) => {
         return (
           <pre 
             style={{ 
-              backgroundColor: '#0a0a0a', 
-              color: '#e5e5e5',
+              backgroundColor: '#0d1117', 
               border: '1px solid var(--border)', 
               borderRadius: '0.5rem', 
               padding: '1rem', 
@@ -199,6 +186,13 @@ export default async function IntegrationPage({
             {...props} 
           />
         )
+      },
+      figure: (props: any) => {
+        // rehype-pretty-code wraps code in figure
+        if (props['data-rehype-pretty-code-figure'] !== undefined) {
+          return <figure style={{ margin: 0, marginBottom: '1.25rem' }} {...props} />
+        }
+        return <figure {...props} />
       },
       blockquote: (props) => {
         // Check if this is a mode callout (Proxy Mode or Vend Mode)
