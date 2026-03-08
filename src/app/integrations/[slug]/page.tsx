@@ -199,22 +199,57 @@ export default async function IntegrationPage({
           />
         )
       },
-      blockquote: (props) => (
-        <blockquote 
-          style={{
-            borderLeft: '4px solid var(--primary)',
-            backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)',
-            paddingLeft: '1rem',
-            paddingRight: '1rem',
-            paddingTop: '0.75rem',
-            paddingBottom: '0.75rem',
-            marginTop: '1.5rem',
-            marginBottom: '1.5rem',
-            borderRadius: '0 0.375rem 0.375rem 0'
-          }}
-          {...props} 
-        />
-      ),
+      blockquote: (props) => {
+        // Check if this is a mode callout (Proxy Mode or Vend Mode)
+        const content = String((props.children as any)?.props?.children || '')
+        const isProxyMode = content.includes('Proxy Mode')
+        const isVendMode = content.includes('Vend Mode')
+        
+        if (isProxyMode || isVendMode) {
+          return (
+            <div 
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+                padding: '1rem 1.25rem',
+                marginBottom: '2rem',
+                borderRadius: '0.5rem',
+                backgroundColor: isVendMode ? 'rgba(34, 197, 94, 0.1)' : 'rgba(234, 179, 8, 0.1)',
+                border: `1px solid ${isVendMode ? 'rgba(34, 197, 94, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
+              }}
+            >
+              <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>{isVendMode ? '✅' : '⚠️'}</span>
+              <div style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>
+                <strong style={{ color: isVendMode ? 'rgb(34, 197, 94)' : 'rgb(234, 179, 8)' }}>
+                  {isVendMode ? 'Vend Mode' : 'Proxy Mode'}
+                </strong>
+                <span style={{ color: 'var(--muted-foreground)', marginLeft: '0.5rem' }}>
+                  {isVendMode 
+                    ? 'Creddy creates real tokens. Agents use them directly with the provider API.'
+                    : "This provider doesn't support ephemeral keys. Creddy proxies requests using your real key."}
+                </span>
+              </div>
+            </div>
+          )
+        }
+        
+        return (
+          <blockquote 
+            style={{
+              borderLeft: '4px solid var(--border)',
+              paddingLeft: '1rem',
+              paddingTop: '0.5rem',
+              paddingBottom: '0.5rem',
+              marginTop: '1.5rem',
+              marginBottom: '1.5rem',
+              color: 'var(--muted-foreground)',
+              fontStyle: 'italic'
+            }}
+            {...props} 
+          />
+        )
+      },
       table: (props) => (
         <div style={{ overflowX: 'auto', marginTop: '1.5rem', marginBottom: '1.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
           <table style={{ width: '100%', fontSize: '0.875rem' }} {...props} />
