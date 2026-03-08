@@ -167,7 +167,15 @@ export default async function IntegrationPage({
           )
         }
         // Code inside pre (handled by rehype-pretty-code)
-        return <code {...props} />
+        return (
+          <code 
+            style={{ 
+              display: 'block',
+              padding: '1rem 1.25rem',
+            }}
+            {...props} 
+          />
+        )
       },
       pre: (props: any) => {
         return (
@@ -176,7 +184,7 @@ export default async function IntegrationPage({
               backgroundColor: '#0d1117', 
               border: '1px solid var(--border)', 
               borderRadius: '0.5rem', 
-              padding: '1.25rem', 
+              padding: 0,
               overflowX: 'auto', 
               marginBottom: '1.25rem', 
               fontSize: '0.875rem', 
