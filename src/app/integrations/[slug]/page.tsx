@@ -176,12 +176,13 @@ export default async function IntegrationPage({
               backgroundColor: '#0d1117', 
               border: '1px solid var(--border)', 
               borderRadius: '0.5rem', 
-              padding: '1rem', 
+              padding: '1.25rem', 
               overflowX: 'auto', 
               marginBottom: '1.25rem', 
               fontSize: '0.875rem', 
               fontFamily: 'ui-monospace, monospace',
-              lineHeight: 1.6
+              lineHeight: 1.7,
+              maxWidth: '100%'
             }}
             {...props} 
           />

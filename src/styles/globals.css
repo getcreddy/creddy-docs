@@ -125,16 +125,18 @@
 [data-rehype-pretty-code-figure] {
   margin: 0;
   margin-bottom: 1.25rem;
+  max-width: 100%;
 }
 
 [data-rehype-pretty-code-figure] pre {
   background-color: #0d1117 !important;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
-  padding: 1rem;
+  padding: 1.25rem;
   overflow-x: auto;
   font-size: 0.875rem;
-  line-height: 1.6;
+  line-height: 1.7;
+  max-width: 100%;
 }
 
 [data-rehype-pretty-code-figure] code {
@@ -143,6 +145,9 @@
   background: transparent !important;
   padding: 0 !important;
   border: none !important;
+  display: block;
+  width: max-content;
+  min-width: 100%;
 }
 
 [data-rehype-pretty-code-figure] code[data-line-numbers] {
