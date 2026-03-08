@@ -13,19 +13,9 @@ Creddy uses a [GitHub App](https://docs.github.com/en/apps) to generate installa
 3. Creddy generates a GitHub App installation token scoped to those repos
 4. Token is returned to the agent (expires in 1 hour max)
 
-```
-┌─────────────┐     creddy get github      ┌─────────────┐
-│   Agent     │ ─────────────────────────▶ │   Creddy    │
-│             │ ◀───────────────────────── │   Server    │
-└─────────────┘     ghs_xxxxx (1h TTL)     └──────┬──────┘
-       │                                          │
-       │ git clone / gh api                       │ GitHub App
-       ▼                                          ▼
-┌─────────────┐                            ┌─────────────┐
-│   GitHub    │ ◀────────────────────────── │  GitHub App │
-│   (repos)   │                            └─────────────┘
-└─────────────┘
-```
+<div className="diagram-invertible-wrapper">
+  <img src="/diagrams/github-flow.svg" alt="GitHub vend flow diagram" />
+</div>
 
 ## Key Concepts
 
