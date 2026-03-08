@@ -37,7 +37,13 @@ Unlike static service tokens that live forever, Creddy tokens are automatically 
 - **Workplace token** — With permission to create service tokens
 - **Projects configured** — The projects agents will access
 
-## Server Setup
+## Installation
+
+```bash
+creddy plugin install doppler
+```
+
+## Configuration
 
 ### 1. Get a Doppler Token
 
@@ -354,16 +360,3 @@ curl -s "https://api.doppler.com/v3/me" \
   -H "Authorization: Bearer $DOPPLER_TOKEN"
 ```
 
-## Version History
-
-### v0.1.2 (Latest)
-- Added: Config wildcard support (`doppler:project/*`)
-- Fixed: Token revocation on TTL expiry
-
-### v0.1.1
-- Added: Read-only scope modifier
-- Improved: Validation error messages
-
-### v0.1.0
-- Initial release
-- Basic service token generation

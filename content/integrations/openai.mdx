@@ -32,7 +32,13 @@ When an agent requests credentials:
 - **Admin API key** (`sk-admin-...`) — requires organization owner to create
 - Project ID (defaults to first active project)
 
-## Server Setup
+## Installation
+
+```bash
+creddy plugin install openai
+```
+
+## Configuration
 
 ### 1. Create an Admin API Key
 
@@ -194,11 +200,3 @@ For reference, the plugin uses these OpenAI Admin API endpoints:
 | Create service account | `POST /v1/organization/projects/{project_id}/service_accounts` |
 | Delete service account | `DELETE /v1/organization/projects/{project_id}/service_accounts/{id}` |
 
-## Version History
-
-### v0.0.1 (Latest)
-- Initial release
-- Admin API implementation using service accounts
-- Admin key validation (`sk-admin-` prefix required)
-- Automatic project discovery
-- Integration tests

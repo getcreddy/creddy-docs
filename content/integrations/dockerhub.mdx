@@ -26,7 +26,13 @@ Creddy's Docker Hub integration creates scoped Personal Access Tokens for your A
 - Docker Hub account
 - Personal Access Token with "Read, Write, Delete" scope (for creating scoped tokens)
 
-## Server Setup
+## Installation
+
+```bash
+creddy plugin install dockerhub
+```
+
+## Configuration
 
 ### 1. Create Admin Token
 
@@ -177,9 +183,3 @@ creddy enroll --server ... --name builder \
 - Check your scope includes write access (no `:read` suffix)
 - Verify the repository exists and you have push permissions
 
-## Version History
-
-### v0.1.0 (Latest)
-- Initial release
-- Repository-scoped access tokens
-- Read/write permission control
