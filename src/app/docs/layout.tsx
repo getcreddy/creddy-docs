@@ -14,7 +14,7 @@ export default async function DocsLayout({
   const pageMap = await getPageMap('/docs')
   
   return (
-    <>
+    <div>
       <Layout
         navbar={<DocsNavbar />}
         pageMap={pageMap}
@@ -24,6 +24,6 @@ export default async function DocsLayout({
         {children}
       </Layout>
       <DocsChatSidebar />
-    </>
+    </div>
   )
 }
