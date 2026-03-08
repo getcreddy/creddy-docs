@@ -1,87 +1,126 @@
 # Creddy
 
-**Ephemeral credentials for AI agents.**
+**OIDC identity for AI agents.**
 
-Your AI agents need access to GitHub, AWS, and other services. But sharing your API keys is risky. Creddy solves this: agents authenticate to Creddy and get short-lived, scoped tokens. They never see your master credentials.
+Your agents shouldn't share your API keys. They should have their own identities — verifiable, auditable, and short-lived. Creddy is an OIDC provider purpose-built for AI agents.
 
-## The Problem
+## The Problem with Shared Secrets
 
-When you give an agent access to your systems:
+Most agent setups today:
 
-1. **Share your credentials** — Agent has full access, forever ❌
-2. **Create long-lived API keys** — Still risky if compromised ❌
-3. **Use Creddy** — Agent gets 10-minute scoped tokens ✅
+```
+Agent → uses your API key → full access, forever
+```
 
-## How It Works
+This is the same anti-pattern we solved for CI/CD years ago. GitHub Actions doesn't use your AWS credentials — it federates via OIDC. Your agents should too.
+
+## Creddy: Identity-First
 
 ```
 ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-│    Agent     │ ──────▶ │    Creddy    │         │   GitHub     │
-│  (your bot)  │  auth   │   Server     │         │   AWS, etc   │
+│    Agent     │ ──────▶ │    Creddy    │ ──────▶ │  GitHub/AWS  │
+│              │  OIDC   │   (IdP)      │  federate│              │
 │              │ ◀────── │              │ ◀────── │              │
-│              │  temp   │  (holds      │  master │              │
-│              │  token  │   secrets)   │  creds  │              │
+│              │  JWT    │              │  temp   │              │
+│              │         │              │  creds  │              │
 └──────────────┘         └──────────────┘         └──────────────┘
 ```
 
-1. **Agent authenticates** to Creddy (via OIDC or token)
-2. **Creddy issues** a short-lived credential for the requested backend
-3. **Agent uses** the credential (expires automatically)
+1. **Agent authenticates** to Creddy, gets a signed JWT
+2. **JWT contains identity claims** — who the agent is, what it can do
+3. **Services trust the JWT** — via OIDC federation or credential exchange
 
-The agent never sees your GitHub App private key or AWS root credentials.
+The agent has an identity. Not a copy of your keys.
 
-## Key Features
+## Why OIDC?
 
-- 🔐 **Ephemeral** — Credentials expire in minutes, not months
-- 🎯 **Scoped** — Grant only what's needed (`github:owner/repo:read`)
-- 📊 **Auditable** — Track every credential issued
-- 🌐 **OIDC Provider** — Standard OAuth 2.0, works with AWS/GCP federation
-- 🔌 **Plugin System** — GitHub, AWS, Doppler, Anthropic, and more
+- **Standard protocol** — Works with AWS IAM, GCP, Azure, Kubernetes
+- **Verifiable claims** — Services can validate tokens without calling Creddy
+- **Short-lived by design** — JWTs expire, no revocation needed
+- **Audit trail** — Every token ties to a specific agent identity
+- **Zero-trust ready** — No long-lived secrets to rotate or leak
 
-## Quick Example
+## Quick Start
 
-**Server (holds your secrets):**
+**1. Run Creddy as your agent IdP:**
 ```bash
-creddy server --oidc-issuer https://creddy.example.com
-creddy backend add github --app-id 123 --private-key ./key.pem
-creddy agent create my-bot --can github:owner/repo
+creddy install --listen 0.0.0.0:8400
 ```
 
-**Agent (gets temporary credentials):**
+**2. Create an agent identity:**
 ```bash
-# Authenticate
-TOKEN=$(curl -s -X POST https://creddy.example.com/oauth/token \
-  -d "grant_type=client_credentials" \
-  -d "client_id=$CLIENT_ID" \
-  -d "client_secret=$CLIENT_SECRET" \
-  | jq -r .access_token)
+creddy agent create my-bot --can github:myorg/*
+```
 
-# Get 10-minute GitHub token
-GITHUB=$(curl -s "https://creddy.example.com/v1/credentials/github?ttl=10m" \
-  -H "Authorization: Bearer $TOKEN" \
-  | jq -r .token)
+**3. Agent authenticates and gets credentials:**
+```bash
+# Get OIDC token
+TOKEN=$(creddy get token)
+
+# Exchange for GitHub credential
+GITHUB_TOKEN=$(creddy get github --ttl 10m)
 
 # Use it
-gh api repos/owner/repo --header "Authorization: token $GITHUB"
+gh api repos/myorg/repo -H "Authorization: token $GITHUB_TOKEN"
 ```
+
+## OIDC Federation
+
+Creddy exposes standard OIDC endpoints. Services that support OIDC federation can trust Creddy directly:
+
+```
+https://creddy.example.com/.well-known/openid-configuration
+https://creddy.example.com/.well-known/jwks.json
+```
+
+### AWS IAM Example
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {"Federated": "arn:aws:iam::123:oidc-provider/creddy.example.com"},
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "creddy.example.com:sub": "agent:my-bot"
+      }
+    }
+  }]
+}
+```
+
+Your agent assumes an AWS role with its Creddy JWT. No AWS keys involved.
+
+## Credential Backends
+
+For services that don't support OIDC federation, Creddy exchanges identity for credentials:
+
+| Backend | How It Works |
+|---------|--------------|
+| GitHub | Agent identity → App installation token |
+| Anthropic | Agent identity → Scoped API key |
+| OpenAI | Agent identity → Ephemeral key |
+| Doppler | Agent identity → Project token |
+| Docker Hub | Agent identity → Access token |
+
+[View all integrations →](/docs/integrations)
+
+## Key Concepts
+
+- **Agents** — Identities for your bots, scripts, and AI systems
+- **Scopes** — What an agent can access (`github:org/repo:read`)
+- **Backends** — Services Creddy can issue credentials for
+- **Policies** — Auto-approval rules for agent enrollment
 
 ## Documentation
 
-- [Getting Started](/docs/getting-started) — Install and run in 5 minutes
-- [OIDC Provider](/docs/oidc) — OAuth 2.0 authentication, AWS federation
-- [Integrations](/docs/integrations) — GitHub, AWS, Doppler, and more
-- [Concepts](/docs/concepts) — Agents, scopes, backends explained
+- [Getting Started](/docs/getting-started) — Running in 5 minutes
+- [OIDC Provider](/docs/oidc) — Federation with AWS, GCP, and more
+- [Agent Management](/docs/agents) — Creating and managing identities
+- [Policies](/docs/policies) — Auto-approval and access control
 
-## Supported Backends
+---
 
-| Backend | Credential Type |
-|---------|-----------------|
-| GitHub | App installation tokens |
-| AWS | STS temporary credentials |
-| Doppler | Scoped service tokens |
-| Anthropic | Ephemeral API keys |
-| OpenAI | Ephemeral API keys |
-| Tailscale | Auth keys |
-| Docker Hub | Access tokens |
-
-[View all integrations →](/docs/integrations)
+*Creddy is open source. [GitHub →](https://github.com/getcreddy/creddy)*
